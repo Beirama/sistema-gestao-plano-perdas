@@ -137,7 +137,7 @@ st.write("**Mapeamento Atual:**")
 df_mapeamento = pd.DataFrame(list(area_responsavel.items()), columns=['Área', 'Responsável'])
 st.table(df_mapeamento)
 
-# Adicionar novo mapeamento
+""" # Adicionar novo mapeamento
 st.write("**Adicionar Novo Mapeamento Área-Responsável**")
 with st.form("adicionar_mapeamento"):
     nova_area = st.text_input("Nova Área", "")
@@ -149,7 +149,7 @@ if submit_mapeamento:
         salvar_mapeamento_area_responsavel(area_responsavel)
         st.success(f"Mapeamento '{nova_area}' -> '{novo_responsavel}' adicionado com sucesso!")
     else:
-        st.error("Por favor, preencha todos os campos para adicionar um novo mapeamento.")
+        st.error("Por favor, preencha todos os campos para adicionar um novo mapeamento.") """
 
 # Editar mapeamento existente
 st.write("**Editar Mapeamento Existente**")
@@ -360,6 +360,26 @@ def estilo_status(val):
 df_estilizado = df_filtrado.style.applymap(estilo_status, subset=['Status'])
 
 st.subheader("Dados do Plano de Ação")
+st.dataframe(df_estilizado)
+
+# Estilização personalizada para a coluna 'Status'
+def estilo_status(val):
+    cor = ''
+    if val == 'Concluída':
+        cor = 'background-color: green; color: white;'
+    elif val == 'Em andamento':
+        cor = 'background-color: orange; color: white;'
+    elif val == 'Programada':
+        cor = 'background-color: blue; color: white;'
+    elif val == 'Atrasada':
+        cor = 'background-color: red; color: white;'
+    return cor
+
+# Filtro de ações dos últimos 7 dias
+ultima_semana = datetime.now() - timedelta(days=7)
+acoes_ultima_semana = df_filtrado[(df_filtrado['Fim Real'] >= ultima_semana) & (df_filtrado['Fim Real'] <= datetime.now())]
+
+st.subheader("Dados do Plano de Ação últimos 7 dias")
 st.dataframe(df_estilizado)
 
 # Gráfico de Distribuição da Classificação do Impacto
