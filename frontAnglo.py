@@ -134,6 +134,8 @@ df['Semana'] = df['Inicio Plan'].dt.isocalendar().week
 # Título do sistema
 st.title('Sistema de Gestão - Plano de Ação')
 
+
+
 # 1. Colocar "Adicionar Novo Plano de Ação" logo após o título
 st.subheader("Adicionar Novo Plano de Ação")
 
