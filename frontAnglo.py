@@ -73,7 +73,8 @@ def carregar_dados():
     required_columns = [
         'Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Dias', 'Inicio Plan',
         'Fim Plan', 'Inicio Real', 'Fim Real', 'Status', 'Observações', 'Nota de Trabalho',
-        'O resultado esperado foi alcançado?', 'Se não, o que será feito?', 'Classificação Impacto', 'Alerta'
+        'O resultado esperado foi alcançado?', 'Se não, o que será feito?', 'Classificação Impacto', 'Alerta',
+        'Corpo', 'Nível'  # Novas colunas adicionadas
     ]
     try:
         df = pd.read_excel('dados_projeto.xlsx')
@@ -81,9 +82,6 @@ def carregar_dados():
         for col in required_columns:
             if col not in df.columns:
                 df[col] = None  # ou qualquer valor padrão que faça sentido
-        # Converter colunas de data para datetime64[ns]
-        for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
-            df[col] = pd.to_datetime(df[col])
     except FileNotFoundError:
         df = pd.DataFrame(columns=required_columns)
     return df
@@ -118,6 +116,10 @@ area_responsavel = carregar_mapeamento_area_responsavel()
 # Carregar responsáveis existentes ou padrão
 responsaveis = carregar_responsaveis()
 
+# Converter colunas de data para datetime64[ns]
+for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
+    df[col] = pd.to_datetime(df[col])
+
 # Aplicar a classificação do impacto
 if not df.empty:
     if 'Impacto' not in df.columns:
@@ -126,100 +128,13 @@ if not df.empty:
 else:
     df['Classificação Impacto'] = []
 
+# Adicionar coluna 'Semana' baseada na 'Inicio Plan'
+df['Semana'] = df['Inicio Plan'].dt.isocalendar().week
+
 # Título do sistema
 st.title('Sistema de Gestão - Plano de Ação')
 
-# Seção para gerenciar Áreas e Responsáveis
-st.subheader("Gerenciar Áreas e Responsáveis")
-
-# Exibir mapeamento atual
-st.write("**Mapeamento Atual:**")
-df_mapeamento = pd.DataFrame(list(area_responsavel.items()), columns=['Área', 'Responsável'])
-st.table(df_mapeamento)
-
-""" # Adicionar novo mapeamento
-st.write("**Adicionar Novo Mapeamento Área-Responsável**")
-with st.form("adicionar_mapeamento"):
-    nova_area = st.text_input("Nova Área", "")
-    novo_responsavel = st.selectbox("Responsável", options=responsaveis)
-    submit_mapeamento = st.form_submit_button("Adicionar Mapeamento")
-if submit_mapeamento:
-    if nova_area and novo_responsavel:
-        area_responsavel[nova_area] = novo_responsavel
-        salvar_mapeamento_area_responsavel(area_responsavel)
-        st.success(f"Mapeamento '{nova_area}' -> '{novo_responsavel}' adicionado com sucesso!")
-    else:
-        st.error("Por favor, preencha todos os campos para adicionar um novo mapeamento.") """
-
-# Editar mapeamento existente
-st.write("**Editar Mapeamento Existente**")
-area_para_editar = st.selectbox("Selecione a Área para editar", options=list(area_responsavel.keys()))
-if area_para_editar:
-    responsavel_atual = area_responsavel[area_para_editar]
-    novo_responsavel_editar = st.selectbox("Novo Responsável", options=responsaveis, index=responsaveis.index(responsavel_atual))
-    if st.button("Atualizar Mapeamento"):
-        area_responsavel[area_para_editar] = novo_responsavel_editar
-        salvar_mapeamento_area_responsavel(area_responsavel)
-        st.success(f"Mapeamento '{area_para_editar}' atualizado para Responsável '{novo_responsavel_editar}'.")
-
-# Excluir mapeamento
-st.write("**Excluir Mapeamento**")
-area_para_excluir = st.selectbox("Selecione a Área para excluir o mapeamento", options=list(area_responsavel.keys()))
-if st.button("Excluir Mapeamento"):
-    if area_para_excluir:
-        del area_responsavel[area_para_excluir]
-        salvar_mapeamento_area_responsavel(area_responsavel)
-        st.success(f"Mapeamento da Área '{area_para_excluir}' excluído com sucesso!")
-    else:
-        st.error("Selecione uma Área válida para excluir.")
-
-# Formulário para gerenciar Responsáveis
-st.subheader("Gerenciar Responsáveis")
-
-# Adicionar novo responsável
-novo_responsavel = st.text_input("Adicionar novo responsável")
-if st.button("Adicionar Responsável"):
-    if novo_responsavel:
-        responsaveis.append(novo_responsavel)
-        salvar_responsaveis(responsaveis)
-        st.success(f"Responsável '{novo_responsavel}' adicionado com sucesso!")
-    else:
-        st.error("Por favor, insira um nome válido para o novo responsável.")
-
-# Editar ou excluir responsáveis
-responsavel_selecionado = st.selectbox("Selecione o responsável para editar ou excluir", responsaveis)
-
-# Editar responsável
-novo_nome_responsavel = st.text_input("Editar nome do responsável", value=responsavel_selecionado)
-if st.button("Editar Responsável"):
-    if novo_nome_responsavel:
-        index = responsaveis.index(responsavel_selecionado)
-        responsaveis[index] = novo_nome_responsavel
-        salvar_responsaveis(responsaveis)
-        # Atualizar mapeamento se necessário
-        for area, resp in area_responsavel.items():
-            if resp == responsavel_selecionado:
-                area_responsavel[area] = novo_nome_responsavel
-        salvar_mapeamento_area_responsavel(area_responsavel)
-        st.success(f"Responsável '{responsavel_selecionado}' atualizado para '{novo_nome_responsavel}'!")
-    else:
-        st.error("Por favor, insira um nome válido para o responsável.")
-
-# Excluir responsável
-if st.button("Excluir Responsável"):
-    if responsavel_selecionado:
-        responsaveis.remove(responsavel_selecionado)
-        salvar_responsaveis(responsaveis)
-        # Remover do mapeamento se necessário
-        areas_para_remover = [area for area, resp in area_responsavel.items() if resp == responsavel_selecionado]
-        for area in areas_para_remover:
-            del area_responsavel[area]
-        salvar_mapeamento_area_responsavel(area_responsavel)
-        st.success(f"Responsável '{responsavel_selecionado}' excluído com sucesso!")
-    else:
-        st.error("Selecione um responsável válido para excluir.")
-
-# Formulário de entrada de dados
+# 1. Colocar "Adicionar Novo Plano de Ação" logo após o título
 st.subheader("Adicionar Novo Plano de Ação")
 
 with st.form("formulario"):
@@ -244,6 +159,14 @@ with st.form("formulario"):
     fim_real = st.date_input('Fim Real (opcional)', value=None)
 
     # Novos campos adicionados
+    # Campo "Corpo" com opções (substitua pelas opções fornecidas)
+    corpos_opcoes = ['Corpo A', 'Corpo B', 'Corpo C']
+    corpo = st.selectbox('Corpo', options=corpos_opcoes)
+
+    # Campo "Nível" com opções de N1 a N50
+    niveis_opcoes = [f'N{n}' for n in range(1, 51)]
+    nivel = st.selectbox('Nível', options=niveis_opcoes)
+
     observacoes = st.text_area("Observações", '')
     nota_trabalho = st.text_area("Nota de Trabalho", '')
     resultado_esperado_alcancado = st.selectbox("O resultado esperado foi alcançado?", ['Sim', 'Não', 'Parcialmente'])
@@ -281,16 +204,121 @@ if submit:
             'Observações': [observacoes],
             'Nota de Trabalho': [nota_trabalho],
             'O resultado esperado foi alcançado?': [resultado_esperado_alcancado],
-            'Se não, o que será feito?': [se_nao_o_que_fazer]
+            'Se não, o que será feito?': [se_nao_o_que_fazer],
+            'Corpo': [corpo],  # Novo campo "Corpo"
+            'Nível': [nivel],   # Novo campo "Nível"
+            'Classificação Impacto': [classificar_impacto(impacto)],
+            'Alerta': ['']  # Inicialmente vazio, será recalculado depois
         })
         # Converter colunas de data para datetime64[ns]
         for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
             nova_linha[col] = pd.to_datetime(nova_linha[col])
-        # Classificar o impacto
-        nova_linha['Classificação Impacto'] = nova_linha['Impacto'].apply(classificar_impacto)
+        # Adicionar coluna 'Semana' baseada na 'Inicio Plan'
+        nova_linha['Semana'] = nova_linha['Inicio Plan'].dt.isocalendar().week
         df = pd.concat([df, nova_linha], ignore_index=True)
         salvar_dados(df)
         st.success("Dados gravados com sucesso!")
+
+# 2. Envolver as seções de mapeamento em expansores para economizar espaço
+
+with st.expander("Gerenciar Áreas e Responsáveis"):
+    st.subheader("Gerenciar Áreas e Responsáveis")
+
+    # Exibir mapeamento atual
+    st.write("**Mapeamento Atual:**")
+    df_mapeamento = pd.DataFrame(list(area_responsavel.items()), columns=['Área', 'Responsável'])
+    st.table(df_mapeamento)
+
+    # Adicionar novo mapeamento
+    st.write("**Adicionar Novo Mapeamento Área-Responsável**")
+    with st.form("adicionar_mapeamento"):
+        nova_area = st.text_input("Nova Área", "")
+        novo_responsavel = st.selectbox("Responsável", options=responsaveis, key='novo_responsavel_mapeamento')
+        submit_mapeamento = st.form_submit_button("Adicionar Mapeamento")
+    if submit_mapeamento:
+        if nova_area and novo_responsavel:
+            if nova_area in area_responsavel:
+                st.error(f"A Área '{nova_area}' já existe no mapeamento.")
+            else:
+                area_responsavel[nova_area] = novo_responsavel
+                salvar_mapeamento_area_responsavel(area_responsavel)
+                st.success(f"Mapeamento '{nova_area}' -> '{novo_responsavel}' adicionado com sucesso!")
+        else:
+            st.error("Por favor, preencha todos os campos para adicionar um novo mapeamento.")
+
+    # Editar mapeamento existente
+    st.write("**Editar Mapeamento Existente**")
+    area_para_editar = st.selectbox("Selecione a Área para editar", options=list(area_responsavel.keys()), key='area_editar_mapeamento')
+    if area_para_editar:
+        responsavel_atual = area_responsavel[area_para_editar]
+        novo_responsavel_editar = st.selectbox("Novo Responsável", options=responsaveis, index=responsaveis.index(responsavel_atual), key='novo_responsavel_editar_mapeamento')
+        if st.button("Atualizar Mapeamento"):
+            area_responsavel[area_para_editar] = novo_responsavel_editar
+            salvar_mapeamento_area_responsavel(area_responsavel)
+            st.success(f"Mapeamento '{area_para_editar}' atualizado para Responsável '{novo_responsavel_editar}'.")
+
+    # Excluir mapeamento
+    st.write("**Excluir Mapeamento**")
+    area_para_excluir = st.selectbox("Selecione a Área para excluir o mapeamento", options=list(area_responsavel.keys()), key='area_excluir_mapeamento')
+    if st.button("Excluir Mapeamento"):
+        if area_para_excluir:
+            del area_responsavel[area_para_excluir]
+            salvar_mapeamento_area_responsavel(area_responsavel)
+            st.success(f"Mapeamento da Área '{area_para_excluir}' excluído com sucesso!")
+        else:
+            st.error("Selecione uma Área válida para excluir.")
+
+with st.expander("Gerenciar Responsáveis"):
+    st.subheader("Gerenciar Responsáveis")
+
+    # Adicionar novo responsável
+    novo_responsavel = st.text_input("Adicionar novo responsável", key='novo_responsavel')
+    if st.button("Adicionar Responsável", key='botao_adicionar_responsavel'):
+        if novo_responsavel:
+            if novo_responsavel in responsaveis:
+                st.error(f"O responsável '{novo_responsavel}' já existe.")
+            else:
+                responsaveis.append(novo_responsavel)
+                salvar_responsaveis(responsaveis)
+                st.success(f"Responsável '{novo_responsavel}' adicionado com sucesso!")
+        else:
+            st.error("Por favor, insira um nome válido para o novo responsável.")
+
+    # Editar ou excluir responsáveis
+    responsavel_selecionado = st.selectbox("Selecione o responsável para editar ou excluir", responsaveis, key='responsavel_selecionado')
+
+    # Editar responsável
+    novo_nome_responsavel = st.text_input("Editar nome do responsável", value=responsavel_selecionado, key='novo_nome_responsavel')
+    if st.button("Editar Responsável", key='botao_editar_responsavel'):
+        if novo_nome_responsavel:
+            if novo_nome_responsavel in responsaveis:
+                st.error(f"O nome '{novo_nome_responsavel}' já está em uso.")
+            else:
+                index = responsaveis.index(responsavel_selecionado)
+                responsaveis[index] = novo_nome_responsavel
+                salvar_responsaveis(responsaveis)
+                # Atualizar mapeamento se necessário
+                for area, resp in area_responsavel.items():
+                    if resp == responsavel_selecionado:
+                        area_responsavel[area] = novo_nome_responsavel
+                salvar_mapeamento_area_responsavel(area_responsavel)
+                st.success(f"Responsável '{responsavel_selecionado}' atualizado para '{novo_nome_responsavel}'!")
+        else:
+            st.error("Por favor, insira um nome válido para o responsável.")
+
+    # Excluir responsável
+    if st.button("Excluir Responsável", key='botao_excluir_responsavel'):
+        if responsavel_selecionado:
+            responsaveis.remove(responsavel_selecionado)
+            salvar_responsaveis(responsaveis)
+            # Remover do mapeamento se necessário
+            areas_para_remover = [area for area, resp in area_responsavel.items() if resp == responsavel_selecionado]
+            for area in areas_para_remover:
+                del area_responsavel[area]
+            salvar_mapeamento_area_responsavel(area_responsavel)
+            st.success(f"Responsável '{responsavel_selecionado}' excluído com sucesso!")
+        else:
+            st.error("Selecione um responsável válido para excluir.")
 
 # Função para verificar alertas
 def verificar_alerta(row):
@@ -308,24 +336,27 @@ if not df.empty:
 else:
     df['Alerta'] = []
 
-# Converter colunas de data para datetime64[ns]
-for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
-    df[col] = pd.to_datetime(df[col])
-
 # Filtros para visualização
 st.sidebar.subheader("Filtros")
 
+# Atualizar a lista de áreas disponíveis
 areas_disponiveis = df['Area'].unique()
-responsaveis_disponiveis = df['Responsavel'].unique()
-status_disponiveis = df['Status'].unique()
 
-filtro_areas = st.sidebar.multiselect("Filtrar por Área", options=areas_disponiveis, default=areas_disponiveis)
+# Selecionar Área
+filtro_areas = st.sidebar.selectbox("Filtrar por Área", options=areas_disponiveis)
+
+# Atualizar responsáveis com base na Área selecionada
+responsaveis_disponiveis = df[df['Area'] == filtro_areas]['Responsavel'].unique()
+
+# Selecionar Responsável
 filtro_responsaveis = st.sidebar.multiselect("Filtrar por Responsável", options=responsaveis_disponiveis, default=responsaveis_disponiveis)
+
+status_disponiveis = df['Status'].unique()
 filtro_status = st.sidebar.multiselect("Filtrar por Status", options=status_disponiveis, default=status_disponiveis)
 
 # Aplicar filtros ao DataFrame
 df_filtrado = df[
-    (df['Area'].isin(filtro_areas)) &
+    (df['Area'] == filtro_areas) &
     (df['Responsavel'].isin(filtro_responsaveis)) &
     (df['Status'].isin(filtro_status))
 ]
@@ -342,7 +373,11 @@ if not df[df['Alerta'] == 'Próxima do Vencimento'].empty:
 # Opcional: Exibir as ações com alerta
 acoes_alerta = df[df['Alerta'].isin(['Atrasada', 'Próxima do Vencimento'])]
 if not acoes_alerta.empty:
-    st.table(acoes_alerta[['Area', 'Acao', 'Responsavel', 'Fim Plan', 'Status', 'Alerta']])
+    # Criar uma cópia para formatação das datas
+    acoes_alerta_display = acoes_alerta.copy()
+    for col in ['Fim Plan']:
+        acoes_alerta_display[col] = acoes_alerta_display[col].dt.strftime('%d/%m/%Y')
+    st.table(acoes_alerta_display[['Area', 'Acao', 'Responsavel', 'Fim Plan', 'Status', 'Alerta', 'Semana']])
 
 # Estilização personalizada para a coluna 'Status'
 def estilo_status(val):
@@ -357,30 +392,41 @@ def estilo_status(val):
         cor = 'background-color: red; color: white;'
     return cor
 
-df_estilizado = df_filtrado.style.applymap(estilo_status, subset=['Status'])
+# Criar uma cópia do DataFrame filtrado para formatação das datas
+df_filtrado_display = df_filtrado.copy()
+for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
+    df_filtrado_display[col] = df_filtrado_display[col].dt.strftime('%d/%m/%Y')
+
+# Aplicar estilização
+df_estilizado = df_filtrado_display.style.applymap(estilo_status, subset=['Status'])
 
 st.subheader("Dados do Plano de Ação")
-st.dataframe(df_estilizado)
+if not df_filtrado.empty:
+    st.dataframe(df_estilizado)
+else:
+    st.info("Não há dados para exibir.")
 
-# Estilização personalizada para a coluna 'Status'
-def estilo_status(val):
-    cor = ''
-    if val == 'Concluída':
-        cor = 'background-color: green; color: white;'
-    elif val == 'Em andamento':
-        cor = 'background-color: orange; color: white;'
-    elif val == 'Programada':
-        cor = 'background-color: blue; color: white;'
-    elif val == 'Atrasada':
-        cor = 'background-color: red; color: white;'
-    return cor
+# Tabela das ações executadas nos últimos 7 dias
+st.subheader("Ações Executadas nos Últimos 7 Dias")
 
-# Filtro de ações dos últimos 7 dias
-ultima_semana = datetime.now() - timedelta(days=7)
-acoes_ultima_semana = df_filtrado[(df_filtrado['Fim Real'] >= ultima_semana) & (df_filtrado['Fim Real'] <= datetime.now())]
+# Obter a data de hoje
+hoje = datetime.now().date()
 
-st.subheader("Dados do Plano de Ação últimos 7 dias")
-st.dataframe(df_estilizado)
+# Filtrar ações concluídas nos últimos 7 dias
+df_ultimos_7_dias = df[
+    (df['Fim Real'].notna()) & 
+    (df['Fim Real'].dt.date >= hoje - timedelta(days=7)) & 
+    (df['Fim Real'].dt.date <= hoje)
+]
+
+if not df_ultimos_7_dias.empty:
+    # Criar uma cópia para formatação das datas
+    df_ultimos_7_dias_display = df_ultimos_7_dias.copy()
+    for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
+        df_ultimos_7_dias_display[col] = df_ultimos_7_dias_display[col].dt.strftime('%d/%m/%Y')
+    st.dataframe(df_ultimos_7_dias_display)
+else:
+    st.info("Não há ações executadas nos últimos 7 dias.")
 
 # Gráfico de Distribuição da Classificação do Impacto
 st.subheader("Distribuição da Classificação do Impacto")
@@ -418,7 +464,7 @@ if texto_impacto.strip():  # Verificar se há texto para gerar a nuvem
 else:
     st.info("Não há descrições de impacto para gerar a nuvem de palavras.")
 
-# Melhorias no Gráfico de Curva S - Progresso Cumulativo (Planejado vs Real)
+# Gráfico de Curva S - Progresso Cumulativo (Planejado vs Real)
 st.subheader("Curva S - Progresso Cumulativo (Planejado vs Real)")
 st.markdown("""
 Este gráfico mostra o progresso cumulativo planejado e real ao longo do tempo, permitindo comparar o andamento real do projeto em relação ao planejado.
@@ -454,7 +500,7 @@ if not df_filtrado.empty:
     ax.plot(datas, perc_real, label='Real', color='green', marker='o')
 
     # Configurações do gráfico
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     fig.autofmt_xdate()
 
@@ -468,7 +514,7 @@ if not df_filtrado.empty:
 else:
     st.info("Não há dados suficientes para gerar a Curva S.")
 
-# Melhorias no Gráfico de Curva S por Classificação de Impacto
+# Gráfico de Curva S por Classificação de Impacto
 st.subheader("Curva S - Progresso Cumulativo por Classificação de Impacto")
 st.markdown("""
 Este gráfico detalha o progresso cumulativo planejado e real para cada nível de impacto, permitindo uma análise mais aprofundada do andamento das atividades de diferentes importâncias.
@@ -509,7 +555,7 @@ if not df_filtrado.empty:
             ax.plot(datas, perc_real, label=f'Real - {classificacao}', linestyle='-', color=colors.get(classificacao, 'black'))
 
     # Configurações do gráfico
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     fig.autofmt_xdate()
 
@@ -550,7 +596,7 @@ if not df.empty:
     local_edit = st.text_input('Local', df.loc[registro_selecionado, 'Local'])
     acao_edit = st.text_input('Ação (O que)', df.loc[registro_selecionado, 'Acao'])
     impacto_edit = st.text_area('Impacto', df.loc[registro_selecionado, 'Impacto'])
-    responsavel_edit = st.selectbox("Responsável", options=responsaveis, index=responsavel_index)
+    responsavel_edit = st.selectbox("Responsável", options=responsaveis, index=responsaveis.index(df.loc[registro_selecionado, 'Responsavel']))
     inicio_plan_edit = st.date_input('Início Planejado', df.loc[registro_selecionado, 'Inicio Plan'])
     fim_plan_edit = st.date_input('Fim Planejado', df.loc[registro_selecionado, 'Fim Plan'])
     inicio_real_edit = st.date_input('Início Real (opcional)', df.loc[registro_selecionado, 'Inicio Real'] if pd.notna(df.loc[registro_selecionado, 'Inicio Real']) else None)
@@ -559,8 +605,28 @@ if not df.empty:
     # Novos campos adicionados
     observacoes_edit = st.text_area("Observações", df.loc[registro_selecionado, 'Observações'] if pd.notna(df.loc[registro_selecionado, 'Observações']) else '')
     nota_trabalho_edit = st.text_area("Nota de Trabalho", df.loc[registro_selecionado, 'Nota de Trabalho'] if pd.notna(df.loc[registro_selecionado, 'Nota de Trabalho']) else '')
-    resultado_esperado_alcancado_edit = st.selectbox("O resultado esperado foi alcançado?", ['Sim', 'Não', 'Parcialmente'], index=['Sim', 'Não', 'Parcialmente'].index(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) if pd.notna(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) else 0)
-    se_nao_o_que_fazer_edit = st.text_area("Se não, o que será feito?", df.loc[registro_selecionado, 'Se não, o que será feito?'] if pd.notna(df.loc[registro_selecionado, 'Se não, o que será feito?']) else '')
+    resultado_esperado_alcancado_edit = st.selectbox(
+        "O resultado esperado foi alcançado?",
+        ['Sim', 'Não', 'Parcialmente'],
+        index=['Sim', 'Não', 'Parcialmente'].index(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) if pd.notna(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) else 0
+    )
+    se_nao_o_que_fazer_edit = st.text_area(
+        "Se não, o que será feito?",
+        df.loc[registro_selecionado, 'Se não, o que será feito?'] if pd.notna(df.loc[registro_selecionado, 'Se não, o que será feito?']) else ''
+    )
+
+    # Campos novos "Corpo" e "Nível"
+    # Usamos as mesmas opções do formulário de inserção
+    corpo_edit = st.selectbox(
+        'Corpo',
+        options=corpos_opcoes,
+        index=corpos_opcoes.index(df.loc[registro_selecionado, 'Corpo']) if pd.notna(df.loc[registro_selecionado, 'Corpo']) else 0
+    )
+    nivel_edit = st.selectbox(
+        'Nível',
+        options=niveis_opcoes,
+        index=niveis_opcoes.index(df.loc[registro_selecionado, 'Nível']) if pd.notna(df.loc[registro_selecionado, 'Nível']) else 0
+    )
 
     # Atualização dos dados editados
     if st.button("Atualizar Registro"):
@@ -591,11 +657,12 @@ if not df.empty:
             df.at[registro_selecionado, 'Nota de Trabalho'] = nota_trabalho_edit
             df.at[registro_selecionado, 'O resultado esperado foi alcançado?'] = resultado_esperado_alcancado_edit
             df.at[registro_selecionado, 'Se não, o que será feito?'] = se_nao_o_que_fazer_edit
-            # Converter colunas de data para datetime64[ns]
-            for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
-                df[col] = pd.to_datetime(df[col])
+            df.at[registro_selecionado, 'Corpo'] = corpo_edit
+            df.at[registro_selecionado, 'Nível'] = nivel_edit
             # Atualizar 'Classificação Impacto'
             df.at[registro_selecionado, 'Classificação Impacto'] = classificar_impacto(impacto_edit)
+            # Atualizar 'Semana'
+            df.at[registro_selecionado, 'Semana'] = inicio_plan_edit.isocalendar().week
             salvar_dados(df)
             st.success("Registro atualizado com sucesso!")
 else:
