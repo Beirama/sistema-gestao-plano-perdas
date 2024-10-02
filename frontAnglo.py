@@ -412,21 +412,22 @@ st.subheader("Ações Executadas nos Últimos 7 Dias")
 # Obter a data de hoje
 hoje = datetime.now().date()
 
-# Filtrar ações concluídas nos últimos 7 dias
-df_ultimos_7_dias = df[
-    (df['Fim Real'].notna()) & 
-    (df['Fim Real'].dt.date >= hoje - timedelta(days=7)) & 
-    (df['Fim Real'].dt.date <= hoje)
+# Obter a data de hoje no formato datetime
+hoje = datetime.now()
+
+# Filtrar as ações executadas nos últimos 7 dias
+ultima_semana = hoje - timedelta(days=7)
+acoes_ultima_semana = df[
+    (df['Fim Real'] >= ultima_semana) &
+    (df['Fim Real'] <= hoje)
 ]
 
-if not df_ultimos_7_dias.empty:
-    # Criar uma cópia para formatação das datas
-    df_ultimos_7_dias_display = df_ultimos_7_dias.copy()
-    for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
-        df_ultimos_7_dias_display[col] = df_ultimos_7_dias_display[col].dt.strftime('%d/%m/%Y')
-    st.dataframe(df_ultimos_7_dias_display)
+# Exibir tabela das atividades executadas nos últimos 7 dias
+st.subheader("Ações Executadas nos Últimos 7 Dias")
+if not acoes_ultima_semana.empty:
+    st.dataframe(acoes_ultima_semana)
 else:
-    st.info("Não há ações executadas nos últimos 7 dias.")
+    st.info("Nenhuma ação foi executada nos últimos 7 dias.")
 
 # Gráfico de Distribuição da Classificação do Impacto
 st.subheader("Distribuição da Classificação do Impacto")
