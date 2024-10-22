@@ -121,8 +121,21 @@ with tab1:
     st.subheader("Cadastro de Ação")
     with st.form("formulario_acao"):
         col1, col2, col3 = st.columns(3)
+        
+        # Mapeamento de Área e Responsável
+        area_responsavel_map = {
+            'Transporte': 'Renan Tales',
+            'Infraestrutura': 'Jayr Rodrigues',
+            'Desenvolvimento': 'Felipe Zanela',
+            'Ventilação': 'Geraldo Duarte',
+            'Backlog': 'Osman Pereira',
+            'Caldeiraria': 'Darley',
+            'ObraCivil': 'Darley',
+            'Mec.Rochas': 'Jeferson Lage'
+        }
+
         with col1:
-            area = st.text_input("Área")  # Usar text_input aqui
+            area = st.selectbox("Área", options=list(area_responsavel_map.keys()))  # Usando selectbox para Área
         with col2:
             local = st.text_input("Local")
         with col3:
@@ -136,9 +149,12 @@ with tab1:
         with col6:
             impacto = st.text_input("Impacto")
 
+        # Responsável é preenchido automaticamente com base na área selecionada
+        responsavel = area_responsavel_map[area]  # Obtém o responsável com base na área selecionada
+
         col7, col8, col9 = st.columns(3)
         with col7:
-            responsavel = st.text_input("Responsável")
+            st.text_input("Responsável", value=responsavel, disabled=True)  # Campo de responsável preenchido e desabilitado
         with col8:
             inicio_planejado = st.date_input("Início Planejado", value=datetime.now(), format="DD/MM/YYYY")
         with col9:
@@ -154,7 +170,7 @@ with tab1:
 
         observacoes = st.text_area("Observações", height=150)
         resultado_esperado = st.text_area("O resultado esperado foi alcançado?", height=150)
-        proximos_passos = st.text_area("Se não, o que será feito?", height=150)
+        se_nao_o_que_fazer = st.text_area("Se não, o que será feito?", height=150)
         submit = st.form_submit_button("Gravar")
 
         if submit:
@@ -163,7 +179,7 @@ with tab1:
                 'Impacto': impacto, 'Responsavel': responsavel, 'Inicio Plan': inicio_planejado,
                 'Fim Plan': fim_planejado, 'Inicio Real': inicio_real, 'Fim Real': fim_real,
                 'Observações': observacoes, 'Nota de Trabalho': nota_trabalho,
-                'O resultado esperado foi alcançado?': resultado_esperado, 'Se não, o que será feito?': proximos_passos
+                'O resultado esperado foi alcançado?': resultado_esperado, 'Se não, o que será feito?': se_nao_o_que_fazer
             }
             st.session_state['dados_formulario'].append(novo_dado)
             st.success("Informações enviadas com sucesso!")
@@ -192,159 +208,81 @@ with tab2:
             st.dataframe(registros_ultimos_7_dias)
         else:
             st.info("Nenhum registro foi encontrado nos últimos 7 dias.")
-    
-    else:
-        st.write("Nenhum dado cadastrado ainda.")
 
-# Filtros para visualização
-    st.sidebar.subheader("Filtros")
-    # Verifique se a coluna 'Status' existe; se não, cria ela
-    if 'Status' not in df.columns:
-        df['Status'] = df.apply(lambda row: calcular_status(row['Inicio Real'], row['Fim Real'], row['Fim Plan']), axis=1)
+        # Edição de Registros Existentes
+        with st.expander("Editar Registros Existentes"):
+            st.subheader("Editar Registros Existentes")
 
-    areas_disponiveis = df['Area'].unique()
-    filtro_areas = st.sidebar.selectbox("Filtrar por Área", options=areas_disponiveis, key='filtro_areas')
-    responsaveis_disponiveis = df[df['Area'] == filtro_areas]['Responsavel'].unique() if filtro_areas else df['Responsavel'].unique()
-    filtro_responsaveis = st.sidebar.multiselect("Filtrar por Responsável", options=responsaveis_disponiveis, default=responsaveis_disponiveis, key='filtro_responsaveis')
-    status_disponiveis = df['Status'].unique()
-    filtro_status = st.sidebar.multiselect("Filtrar por Status", options=status_disponiveis, default=status_disponiveis, key='filtro_status')
+            if not df.empty:
+                indices_disponiveis = df.index.tolist()
+                registro_selecionado = st.selectbox("Selecione o número do registro para editar", indices_disponiveis, key='registro_editar')
+                st.subheader(f"Editando registro #{registro_selecionado}")
 
-    # Aplicar os filtros ao dataframe
-    df_filtrado = df[
-        (df['Area'] == filtro_areas) &
-        (df['Responsavel'].isin(filtro_responsaveis)) &
-        (df['Status'].isin(filtro_status))
-    ]
+                # Obter dados do registro selecionado
+                registro_data = df.loc[registro_selecionado]
 
-    # Verificação de alertas
-    def verificar_alerta(row):
-        hoje = datetime.now().date()
-        if row['Status'] == 'Atrasada':
-            return 'Atrasada'
-        elif row['Status'] != 'Concluída' and (row['Fim Plan'].date() - hoje).days <= 3:
-            return 'Próxima do Vencimento'
-        else:
-            return ''
+                area_options = list(area_responsavel.keys())
+                area_value = registro_data['Area']
+                area_index = area_options.index(area_value) if area_value in area_options else 0
 
-    # Verifique se a coluna 'Alerta' existe e, se não existir, crie-a
-    if 'Alerta' not in df.columns:
-        df['Alerta'] = df.apply(verificar_alerta, axis=1)
+                area_edit = st.selectbox('Área', options=area_options, index=area_index)
+                responsavel_edit = st.text_input("Responsável", value=registro_data['Responsavel'])
+                local_edit = st.text_input('Local', value=registro_data['Local'])
+                acao_edit = st.text_input('Ação (O que)', value=registro_data['Acao'])
+                impacto_edit = st.text_area('Impacto', value=registro_data['Impacto'])
+                inicio_plan_edit = st.date_input('Início Planejado', value=registro_data['Inicio Plan'])
+                fim_plan_edit = st.date_input('Fim Planejado', value=registro_data['Fim Plan'])
+                inicio_real_edit = st.date_input('Início Real (opcional)', value=registro_data['Inicio Real'] if pd.notna(registro_data['Inicio Real']) else None)
+                fim_real_edit = st.date_input('Fim Real (opcional)', value=registro_data['Fim Real'] if pd.notna(registro_data['Fim Real']) else None)
 
-    st.subheader("Alertas")
-    if not df[df['Alerta'] == 'Atrasada'].empty:
-        st.error("Existem ações atrasadas!")
-    if not df[df['Alerta'] == 'Próxima do Vencimento'].empty:
-        st.warning("Existem ações próximas do vencimento!")
+                observacoes_edit = st.text_area("Observações", value=registro_data['Observações'] if pd.notna(registro_data['Observações']) else '')
+                nota_trabalho_edit = st.text_area("Nota de Trabalho", value=registro_data['Nota de Trabalho'] if pd.notna(registro_data['Nota de Trabalho']) else '')
 
-    acoes_alerta = df[df['Alerta'].isin(['Atrasada', 'Próxima do Vencimento'])]
-    if not acoes_alerta.empty:
-        acoes_alerta_display = acoes_alerta.copy()
-        for col in ['Fim Plan']:
-            acoes_alerta_display[col] = acoes_alerta_display[col].dt.strftime('%d/%m/%Y')
-        st.table(acoes_alerta_display[['Area', 'Acao', 'Responsavel', 'Fim Plan', 'Status', 'Alerta', 'Semana']])
-        
-    df_filtrado_display = df_filtrado.copy()
-    for col in ['Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real']:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
+                resultado_esperado = registro_data['O resultado esperado foi alcançado?'] if pd.notna(registro_data['O resultado esperado foi alcançado?']) else 'Sim'  # Valor padrão
+                opcoes_resultado = ['Sim', 'Não', 'Parcialmente']
 
-    def estilo_status(val):
-        cor = ''
-        if val == 'Concluída':
-            cor = 'background-color: green; color: white;'
-        elif val == 'Em andamento':
-            cor = 'background-color: orange; color: white;'
-        elif val == 'Programada':
-            cor = 'background-color: blue; color: white;'
-        elif val == 'Atrasada':
-            cor = 'background-color: red; color: white;'
-        return cor
+                if resultado_esperado not in opcoes_resultado:
+                    resultado_esperado = 'Sim'  # Ou qualquer valor padrão que você desejar
 
-    df_estilizado = df_filtrado_display.style.applymap(estilo_status, subset=['Status'])
-    if not df_filtrado.empty:
-        st.dataframe(df_estilizado)
-    else:
-        st.info("Não há dados para exibir.")
+                index = opcoes_resultado.index(resultado_esperado)
 
-# Edição de Registros Existentes
-with st.expander("Editar Registros Existentes"):
-    st.subheader("Editar Registros Existentes")
+                opcoes_resultado = ['SIM', 'NÃO']
+                resultado_esperado_alcancado_edit = st.selectbox(
+                "O resultado esperado foi alcançado?",
+                opcoes_resultado,
+                index=0  # Definindo "SIM" como padrão
+                )
 
-    if not df.empty:
-        indices_disponiveis = df.index.tolist()
-        registro_selecionado = st.selectbox("Selecione o número do registro para editar", indices_disponiveis, key='registro_editar')
-        st.subheader(f"Editando registro #{registro_selecionado}")
-        
-        area_options = list(area_responsavel.keys())
-        area_value = df.loc[registro_selecionado, 'Area']
-        if area_value in area_options:
-            area_index = area_options.index(area_value)
-        else:
-            area_index = 0
+                if st.button("Atualizar Registro"):
+                    # Validação das datas
+                    if inicio_plan_edit > fim_plan_edit:
+                        st.error("A data de início planejado não pode ser após a data de fim planejado.")
+                    elif inicio_real_edit and fim_real_edit and inicio_real_edit > fim_real_edit:
+                        st.error("A data de início real não pode ser após a data de fim real.")
+                    elif not responsavel_edit:  # Verifica se o campo de responsáveis está vazio
+                        st.error("O campo de responsável não pode estar vazio.")
+                    else:
+                        # Atualiza os dados no DataFrame original
+                        df.at[registro_selecionado, 'Area'] = area_edit
+                        df.at[registro_selecionado, 'Responsavel'] = responsavel_edit
+                        df.at[registro_selecionado, 'Local'] = local_edit
+                        df.at[registro_selecionado, 'Acao'] = acao_edit
+                        df.at[registro_selecionado, 'Impacto'] = impacto_edit
+                        df.at[registro_selecionado, 'Inicio Plan'] = inicio_plan_edit
+                        df.at[registro_selecionado, 'Fim Plan'] = fim_plan_edit
+                        df.at[registro_selecionado, 'Inicio Real'] = inicio_real_edit
+                        df.at[registro_selecionado, 'Fim Real'] = fim_real_edit
+                        df.at[registro_selecionado, 'Observações'] = observacoes_edit
+                        df.at[registro_selecionado, 'Nota de Trabalho'] = nota_trabalho_edit
+                        df.at[registro_selecionado, 'O resultado esperado foi alcançado?'] = resultado_esperado_alcancado_edit
+                        df.at[registro_selecionado, 'Se não, o que será feito?'] = se_nao_o_que_fazer
 
-        area_edit = st.selectbox('Área', options=area_options, index=area_index)
-
-        # Definir o responsável atual e verificar se está na lista de responsáveis
-        responsavel_atual = df.loc[registro_selecionado, 'Responsavel']
-        
-        # Usar uma caixa de texto para entrada de múltiplos responsáveis
-        responsaveis_input = st.text_input(
-            "Responsável", 
-            value=responsavel_atual  # Coloca o responsável atual como valor padrão
-        )
-
-        # Processar a entrada para criar uma lista
-        responsavel_edit = [r.strip() for r in responsaveis_input.split(',')]  # Remove espaços em branco
-
-        local_edit = st.text_input('Local', df.loc[registro_selecionado, 'Local'])
-        acao_edit = st.text_input('Ação (O que)', df.loc[registro_selecionado, 'Acao'])
-        impacto_edit = st.text_area('Impacto', df.loc[registro_selecionado, 'Impacto'])
-        inicio_plan_edit = st.date_input('Início Planejado', df.loc[registro_selecionado, 'Inicio Plan'])
-        fim_plan_edit = st.date_input('Fim Planejado', df.loc[registro_selecionado, 'Fim Plan'])
-        inicio_real_edit = st.date_input('Início Real (opcional)', df.loc[registro_selecionado, 'Inicio Real'] if pd.notna(df.loc[registro_selecionado, 'Inicio Real']) else None)
-        fim_real_edit = st.date_input('Fim Real (opcional)', df.loc[registro_selecionado, 'Fim Real'] if pd.notna(df.loc[registro_selecionado, 'Fim Real']) else None)
-
-        observacoes_edit = st.text_area("Observações", df.loc[registro_selecionado, 'Observações'] if pd.notna(df.loc[registro_selecionado, 'Observações']) else '')
-        nota_trabalho_edit = st.text_area("Nota de Trabalho", df.loc[registro_selecionado, 'Nota de Trabalho'] if pd.notna(df.loc[registro_selecionado, 'Nota de Trabalho']) else '')
-        resultado_esperado_alcancado_edit = st.selectbox(
-            "O resultado esperado foi alcançado?",
-            ['Sim', 'Não', 'Parcialmente'],
-            index=['Sim', 'Não', 'Parcialmente'].index(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) 
-            if pd.notna(df.loc[registro_selecionado, 'O resultado esperado foi alcançado?']) 
-            and df.loc[registro_selecionado, 'O resultado esperado foi alcançado?'] in ['Sim', 'Não', 'Parcialmente']
-            else 0  # Caso contrário, usar o índice 0 (Sim)
-        )
-
-        se_nao_o_que_fazer_edit = st.text_area(
-            "Se não, o que será feito?",
-            df.loc[registro_selecionado, 'Se não, o que será feito?'] if pd.notna(df.loc[registro_selecionado, 'Se não, o que será feito?']) else ''
-        )
-
-        if st.button("Atualizar Registro"):
-            # Validação das datas e lógica de atualização
-            if inicio_plan_edit > fim_plan_edit:
-                st.error("A data de início planejado não pode ser após a data de fim planejado.")
-            elif inicio_real_edit and fim_real_edit and inicio_real_edit > fim_real_edit:
-                st.error("A data de início real não pode ser após a data de fim real.")
+                        # Salva as alterações no arquivo
+                        st.session_state['dados_formulario'] = df.to_dict('records')
+                        salvar_dados(df)
+                        st.success("Registro atualizado com sucesso!")
             else:
-                # Atualiza os dados no DataFrame original
-                df.at[registro_selecionado, 'Area'] = area_edit
-                df.at[registro_selecionado, 'Responsavel'] = responsavel_edit
-                df.at[registro_selecionado, 'Local'] = local_edit
-                df.at[registro_selecionado, 'Acao'] = acao_edit
-                df.at[registro_selecionado, 'Impacto'] = impacto_edit
-                df.at[registro_selecionado, 'Inicio Plan'] = inicio_plan_edit
-                df.at[registro_selecionado, 'Fim Plan'] = fim_plan_edit
-                df.at[registro_selecionado, 'Inicio Real'] = inicio_real_edit
-                df.at[registro_selecionado, 'Fim Real'] = fim_real_edit
-                df.at[registro_selecionado, 'Observações'] = observacoes_edit
-                df.at[registro_selecionado, 'Nota de Trabalho'] = nota_trabalho_edit
-                df.at[registro_selecionado, 'O resultado esperado foi alcançado?'] = resultado_esperado_alcancado_edit
-                df.at[registro_selecionado, 'Se não, o que será feito?'] = se_nao_o_que_fazer_edit
-
-                salvar_dados(df)  # Salva as alterações no arquivo
-                st.success("Registro atualizado com sucesso!")
-    else:
-        st.info("Não há registros para editar.")
+                st.info("Não há registros para editar.")
 
 with tab3:
     st.subheader("Gráficos")
