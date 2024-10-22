@@ -293,39 +293,6 @@ with tab3:
         if 'Status' not in df.columns:
             df['Status'] = df.apply(lambda row: calcular_status(row['Inicio Real'], row['Fim Real'], row['Fim Plan']), axis=1)
 
-        # Gráfico de porcentagem dos status
-        st.subheader("Distribuição dos Status")
-
-        # Contando a quantidade de cada status
-        status_counts = df['Status'].value_counts()
-
-        # Calculando as porcentagens
-        status_percentages = (status_counts / status_counts.sum()) * 100
-
-        # Cores personalizadas para os status
-        cores_status = {
-            'Programada': '#FFA500',  # Laranja
-            'Em andamento': '#D43F00',  # Vermelho
-            'Concluída': '#E8C639',  # Amarelo
-            'Atrasada': '#E96D39',  # Roxo
-        }
-
-        # Criando o gráfico de pizza com porcentagens
-        fig_status = go.Figure(data=[go.Pie(labels=status_counts.index, values=status_counts.values, 
-                                            textinfo='label+percent',  # Mostra o rótulo e a porcentagem
-                                            hole=.3, 
-                                            marker=dict(colors=[cores_status.get(label, 'grey') for label in status_counts.index]))])
-
-        # Configurando o layout do gráfico
-        fig_status.update_layout(
-            title_text='Distribuição de Status das Ações',
-            annotations=[dict(text='Status', x=0.5, y=0.5, font_size=20, showarrow=False)]
-        )
-
-        # Renderizando o gráfico de pizza
-        st.plotly_chart(fig_status)
-
-
         # Continuar com os outros gráficos...
         st.subheader("Curva S - Progresso Cumulativo")
         df_plan = df.copy()
