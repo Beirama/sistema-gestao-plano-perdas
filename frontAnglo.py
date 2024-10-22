@@ -191,7 +191,15 @@ with tab2:
     # Exibe os dados cadastrados
     if 'dados_formulario' in st.session_state and st.session_state['dados_formulario']:
         df = pd.DataFrame(st.session_state['dados_formulario'])
-        st.dataframe(df)
+
+        # Adicionar a coluna de status utilizando a função existente
+        df['Status'] = df.apply(lambda row: calcular_status(
+            row['Inicio Real'], 
+            row['Fim Real'], 
+            row['Fim Plan']
+        ), axis=1)
+
+        st.dataframe(df)  # Exibe a tabela com a nova coluna de status
 
         # Exibe os registros dos últimos 7 dias
         st.subheader("Registros dos Últimos 7 Dias")
@@ -208,6 +216,9 @@ with tab2:
             st.dataframe(registros_ultimos_7_dias)
         else:
             st.info("Nenhum registro foi encontrado nos últimos 7 dias.")
+    
+    else:
+        st.write("Nenhum dado cadastrado ainda.")
 
         # Edição de Registros Existentes
         with st.expander("Editar Registros Existentes"):
@@ -293,39 +304,6 @@ with tab3:
         if 'Status' not in df.columns:
             df['Status'] = df.apply(lambda row: calcular_status(row['Inicio Real'], row['Fim Real'], row['Fim Plan']), axis=1)
 
-        # Gráfico de porcentagem dos status
-        st.subheader("Distribuição dos Status")
-
-        # Contando a quantidade de cada status
-        status_counts = df['Status'].value_counts()
-
-        # Calculando as porcentagens
-        status_percentages = (status_counts / status_counts.sum()) * 100
-
-        # Cores personalizadas para os status
-        cores_status = {
-            'Programada': '#FFA500',  # Laranja
-            'Em andamento': '#D43F00',  # Vermelho
-            'Concluída': '#E8C639',  # Amarelo
-            'Atrasada': '#E96D39',  # Roxo
-        }
-
-        # Criando o gráfico de pizza com porcentagens
-        fig_status = go.Figure(data=[go.Pie(labels=status_counts.index, values=status_counts.values, 
-                                            textinfo='label+percent',  # Mostra o rótulo e a porcentagem
-                                            hole=.3, 
-                                            marker=dict(colors=[cores_status.get(label, 'grey') for label in status_counts.index]))])
-
-        # Configurando o layout do gráfico
-        fig_status.update_layout(
-            title_text='Distribuição de Status das Ações',
-            annotations=[dict(text='Status', x=0.5, y=0.5, font_size=20, showarrow=False)]
-        )
-
-        # Renderizando o gráfico de pizza
-        st.plotly_chart(fig_status)
-
-
         # Continuar com os outros gráficos...
         st.subheader("Curva S - Progresso Cumulativo")
         df_plan = df.copy()
@@ -396,7 +374,7 @@ with tab3:
 
         # Renderizando o gráfico de barras
         st.plotly_chart(fig_bar)
-
+    
     else:
         st.write("Nenhum dado disponível para gerar gráficos.")
 
