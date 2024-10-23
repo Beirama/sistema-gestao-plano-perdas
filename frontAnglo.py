@@ -8,38 +8,40 @@ import matplotlib.dates as mdates
 from wordcloud import WordCloud
 import plotly.graph_objs as go
 
-st.markdown(
-    """
-    <style>
-    th {
-        color: red !important;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
 
 # Função para calcular status automaticamente
-def calcular_status(inicio_real, fim_real, data_fim_plan):
-    hoje = datetime.now().date()
+def calcular_status(inicio_real, fim_real, inicio_plan, fim_plan, inicio_repro=None, fim_repro=None):
+    hoje = pd.to_datetime(datetime.now().date())
 
-    if isinstance(data_fim_plan, datetime):
-        data_fim_plan = data_fim_plan.date()
+    # Certifique-se de que as entradas sejam do tipo Timestamp
+    inicio_plan = pd.to_datetime(inicio_plan) if pd.notna(inicio_plan) else pd.NaT
+    fim_plan = pd.to_datetime(fim_plan) if pd.notna(fim_plan) else pd.NaT
+    inicio_real = pd.to_datetime(inicio_real) if pd.notna(inicio_real) else pd.NaT
+    fim_real = pd.to_datetime(fim_real) if pd.notna(fim_real) else pd.NaT
+    inicio_repro = pd.to_datetime(inicio_repro) if pd.notna(inicio_repro) else pd.NaT
+    fim_repro = pd.to_datetime(fim_repro) if pd.notna(fim_repro) else pd.NaT
 
-    if inicio_real and isinstance(inicio_real, datetime):
-        inicio_real = inicio_real.date()
-    if fim_real and isinstance(fim_real, datetime):
-        fim_real = fim_real.date()
-
-    if pd.isna(inicio_real) and data_fim_plan < hoje:
+    # Verifica se o campo de início planejado está vazio
+    if pd.isna(inicio_plan):
+        return "_"
+    # Atrasada: Início planejado é menor que hoje e fim planejado está vazio
+    if pd.isna(fim_plan) and inicio_plan < hoje:
         return "Atrasada"
-    elif pd.isna(inicio_real) and data_fim_plan >= hoje:
-        return "Programada"
+    # Programada: Início planejado é maior que hoje
+    elif pd.isna(fim_plan) and inicio_plan > hoje:
+        return "Programada" 
+    # Concluída: Fim real não está vazio
     elif not pd.isna(fim_real):
         return "Concluída"
-    elif inicio_real <= hoje and pd.isna(fim_real):
+    # Em andamento: Fim real não está vazio e início real é menor que hoje
+    elif not pd.isna(fim_real) and inicio_real <= hoje:
         return "Em andamento"
-    else:
-        return "Em andamento"
+    # Atrasada: Se o início real estiver vazio e a data final planejada estiver no passado
+    elif pd.isna(fim_real) and fim_plan < hoje:
+        return "Atrasada"
+    # Em andamento: Qualquer outro caso
+    return "Em andamento"
+
 
 # Função para garantir que uma coluna é do tipo datetime
 def converter_para_datetime(coluna):
@@ -74,7 +76,7 @@ def carregar_dados():
         'Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Dias', 'Inicio Plan',
         'Fim Plan', 'Inicio Real', 'Fim Real', 'Status', 'Observações', 'Nota de Trabalho',
         'O resultado esperado foi alcançado?', 'Se não, o que será feito?', 'Classificação Impacto', 'Alerta',
-        'Corpo', 'Nível'
+        'Corpo', 'Nível', 'Inicio(REPRO)', 'Fim(REPRO)'  # Novas colunas adicionadas
     ]
     try:
         df = pd.read_excel('dados_projeto.xlsx')
@@ -101,6 +103,10 @@ def salvar_dados(df):
 if 'dados_formulario' not in st.session_state:
     st.session_state['dados_formulario'] = []
 
+# Inicializando a chave 'corpos' no session_state
+if 'corpos' not in st.session_state:
+    st.session_state['corpos'] = ['BAL', 'CGA', 'FGS', 'GAL', 'SER']  # Valores padrão
+
 # Carregar o mapeamento de áreas e responsáveis
 area_responsavel = carregar_mapeamento_area_responsavel()
 
@@ -111,12 +117,14 @@ df['Inicio Plan'] = converter_para_datetime(df['Inicio Plan'])
 df['Fim Plan'] = converter_para_datetime(df['Fim Plan'])
 df['Inicio Real'] = converter_para_datetime(df['Inicio Real'])
 df['Fim Real'] = converter_para_datetime(df['Fim Real'])
+df['Inicio(REPRO)'] = converter_para_datetime(df['Inicio(REPRO)'])  # Nova coluna
+df['Fim(REPRO)'] = converter_para_datetime(df['Fim(REPRO)'])  # Nova coluna
+
 
 st.title('Sistema de Gestão - Plano de Ação')
 
 tab1, tab2, tab3, tab4 = st.tabs(["CADASTRO", "TABELAS", "GRÁFICOS", "CONFIGURAÇÕES"])
 
-# Aba 1: CADASTRO
 with tab1:
     st.subheader("Cadastro de Ação")
     with st.form("formulario_acao"):
@@ -141,48 +149,104 @@ with tab1:
         with col3:
             acao = st.text_input("Ação (O que)")
 
-        col4, col5, col6 = st.columns(3)
+         # Adicionando um campo para o Status com opção vazia
+        status_opcoes = [''] + ['Concluída', 'Atrasada', 'Em andamento', 'Programada', '-']  # Opção vazia adicionada
+
+        col4, col5 = st.columns(2)
         with col4:
-            corpo = st.selectbox("Corpo", options=['BAL', 'CGA', 'FGS', 'GAL', 'SER'])
+            novo_corpo = st.text_input("Adicionar Corpo (deixe vazio para manter o existente)")
         with col5:
-            nivel = st.selectbox("Nível", options=[f'N{n}' for n in range(1, 51)])
+            status_preenchido = st.selectbox("Status", options=status_opcoes)  # Opção vazia adicionada
+
+        col6, col7, col8 = st.columns(3)
         with col6:
+            corpo = st.selectbox("Corpo", options=st.session_state['corpos'])
+        with col7:
+            nivel = st.selectbox("Nível", options=[f'N{n}' for n in range(1, 51)])
+        with col8:
             impacto = st.text_input("Impacto")
 
         # Responsável é preenchido automaticamente com base na área selecionada
         responsavel = area_responsavel_map[area]  # Obtém o responsável com base na área selecionada
 
-        col7, col8, col9 = st.columns(3)
-        with col7:
-            st.text_input("Responsável", value=responsavel, disabled=True)  # Campo de responsável preenchido e desabilitado
-        with col8:
-            inicio_planejado = st.date_input("Início Planejado", value=datetime.now(), format="DD/MM/YYYY")
+        col9, col10, col11 = st.columns(3)
         with col9:
-            fim_planejado = st.date_input("Fim Planejado", value=datetime.now(), format="DD/MM/YYYY")
-
-        col10, col11, col12 = st.columns(3)
+            st.text_input("Responsável", value=responsavel, disabled=True)  # Campo de responsável preenchido e desabilitado
         with col10:
-            inicio_real = st.date_input("Início Real", value=datetime.now(), format="DD/MM/YYYY")
+            inicio_planejado = st.date_input("Início Planejado", value=None, format="DD/MM/YYYY")
         with col11:
-            fim_real = st.date_input("Fim Real", value=datetime.now(), format="DD/MM/YYYY")
+            fim_planejado = st.date_input("Fim Planejado", value=None, format="DD/MM/YYYY")
+
+        col12, col13 = st.columns(2)
         with col12:
+            inicio_real = st.date_input("Início Real", value=None, format="DD/MM/YYYY")
+        with col13:
+            fim_real = st.date_input("Fim Real", value=None, format="DD/MM/YYYY")
+
+        # Novos campos para Inicio(REPRO) e Fim(REPRO)
+        col14, col15, col16 = st.columns(3)
+        with col14:
+            inicio_repro = st.date_input("Início(REPRO)", value=None, format="DD/MM/YYYY")
+        with col15:
+            fim_repro = st.date_input("Fim(REPRO)", value=None, format="DD/MM/YYYY")
+
+        with col16:
             nota_trabalho = st.text_input("Nota de Trabalho")
 
         observacoes = st.text_area("Observações", height=150)
         resultado_esperado = st.text_area("O resultado esperado foi alcançado?", height=150)
         se_nao_o_que_fazer = st.text_area("Se não, o que será feito?", height=150)
+    
+
+
         submit = st.form_submit_button("Gravar")
 
         if submit:
+            if novo_corpo:  # Se um novo corpo for fornecido
+                # Adiciona o novo corpo na lista de corpos, se ainda não estiver lá
+                if novo_corpo not in st.session_state['corpos']:
+                    st.session_state['corpos'].append(novo_corpo)
+        if submit:
+            # Adiciona o novo corpo na lista de corpos, se fornecido e não estiver lá
+            if novo_corpo and novo_corpo not in st.session_state['corpos']:
+                st.session_state['corpos'].append(novo_corpo)
+
+            # Se o status estiver preenchido, usa esse valor; caso contrário, calcula usando a lógica existente
+            if status_preenchido:  # Se não for vazio
+                status = status_preenchido  # O usuário preencheu o status
+            else:
+                status = calcular_status(
+                    pd.to_datetime(inicio_real) if pd.notna(inicio_real) else pd.NaT,
+                    pd.to_datetime(fim_real) if pd.notna(fim_real) else pd.NaT,
+                    pd.to_datetime(inicio_planejado) if pd.notna(inicio_planejado) else pd.NaT,
+                    pd.to_datetime(fim_planejado) if pd.notna(fim_planejado) else pd.NaT,
+                    pd.to_datetime(inicio_repro) if pd.notna(inicio_repro) else pd.NaT,
+                    pd.to_datetime(fim_repro) if pd.notna(fim_repro) else pd.NaT
+                )
+
             novo_dado = {
-                'Area': area, 'Local': local, 'Acao': acao, 'Corpo': corpo, 'Nível': nivel,
-                'Impacto': impacto, 'Responsavel': responsavel, 'Inicio Plan': inicio_planejado,
-                'Fim Plan': fim_planejado, 'Inicio Real': inicio_real, 'Fim Real': fim_real,
-                'Observações': observacoes, 'Nota de Trabalho': nota_trabalho,
-                'O resultado esperado foi alcançado?': resultado_esperado, 'Se não, o que será feito?': se_nao_o_que_fazer
+                'Area': area,
+                'Local': local,
+                'Acao': acao,
+                'Corpo': corpo,
+                'Nível': nivel,
+                'Impacto': impacto,
+                'Responsavel': responsavel,
+                'Inicio Plan': inicio_planejado,
+                'Fim Plan': fim_planejado,
+                'Inicio Real': inicio_real,
+                'Fim Real': fim_real,
+                'Inicio(REPRO)': inicio_repro,
+                'Fim(REPRO)': fim_repro,
+                'Observações': observacoes,
+                'Nota de Trabalho': nota_trabalho,
+                'O resultado esperado foi alcançado?': resultado_esperado,
+                'Se não, o que será feito?': se_nao_o_que_fazer,
+                'Status': status  # Armazenando o status aqui
             }
             st.session_state['dados_formulario'].append(novo_dado)
             st.success("Informações enviadas com sucesso!")
+
 
 # Aba 2: TABELAS
 with tab2:
@@ -192,191 +256,367 @@ with tab2:
     if 'dados_formulario' in st.session_state and st.session_state['dados_formulario']:
         df = pd.DataFrame(st.session_state['dados_formulario'])
 
-        # Adicionar a coluna de status utilizando a função existente
+        # Certifique-se de que as colunas de data estão no formato datetime
+        df['Inicio Plan'] = converter_para_datetime(df['Inicio Plan'])
+        df['Inicio Real'] = converter_para_datetime(df['Inicio Real'])
+        df['Fim Plan'] = converter_para_datetime(df['Fim Plan'])
+        df['Fim Real'] = converter_para_datetime(df['Fim Real'])
+
+        df['Status'] = df.apply(lambda row: calcular_status(
+        pd.to_datetime(row['Inicio Real']) if pd.notna(row['Inicio Real']) else pd.NaT,
+        pd.to_datetime(row['Fim Real']) if pd.notna(row['Fim Real']) else pd.NaT,
+        pd.to_datetime(row['Inicio Plan']) if pd.notna(row['Inicio Plan']) else pd.NaT,
+        pd.to_datetime(row['Fim Plan']) if pd.notna(row['Fim Plan']) else pd.NaT
+        ), axis=1)
+
         df['Status'] = df.apply(lambda row: calcular_status(
             row['Inicio Real'], 
             row['Fim Real'], 
-            row['Fim Plan']
+            row['Inicio Plan'],  # Passa o valor de Inicio Plan
+            row['Fim Plan']      # Passa o valor de Fim Plan
         ), axis=1)
 
-        st.dataframe(df)  # Exibe a tabela com a nova coluna de status
+        # Adicionar a coluna 'Semana do Ano' baseada na coluna 'Inicio Plan'
+        df['Semana do Ano'] = df['Inicio Plan'].dt.isocalendar().week
 
-        # Exibe os registros dos últimos 7 dias
-        st.subheader("Registros dos Últimos 7 Dias")
-        hoje = datetime.now().date()
-        ultima_semana = hoje - timedelta(days=7)
+        # Filtro de área
+        area_filtro = st.selectbox("Filtrar por Área", options=['Todas'] + list(area_responsavel.keys()))
+        
+        if area_filtro != 'Todas':
+            df = df[df['Area'] == area_filtro]
 
-        # Filtra os registros com base na data de Fim Real
-        registros_ultimos_7_dias = df[
-            (df['Fim Real'] >= ultima_semana) & 
-            (df['Fim Real'] <= hoje)
-        ]
+        # Exibe a tabela com cabeçalho vermelho
+        st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
+        st.dataframe(df)
 
-        if not registros_ultimos_7_dias.empty:
-            st.dataframe(registros_ultimos_7_dias)
+        # Tabela de últimos 10 registros atrasados
+        st.subheader("Últimos 10 Registros Atrasados")
+
+        # Filtrando registros atrasados
+        registros_atrasados = df[df['Status'] == 'Atrasada']
+
+        # Ordenar pelos mais atrasados
+        registros_atrasados = registros_atrasados.sort_values(by='Fim Plan', ascending=True)
+
+        # Selecionar os últimos 10
+        ultimos_10_atrasados = registros_atrasados.head(10)
+
+        # Exibir a tabela se houver registros atrasados
+        if not ultimos_10_atrasados.empty:
+            st.dataframe(ultimos_10_atrasados)
         else:
-            st.info("Nenhum registro foi encontrado nos últimos 7 dias.")
-    
+            st.write("Não há registros atrasados.")
     else:
         st.write("Nenhum dado cadastrado ainda.")
 
-        # Edição de Registros Existentes
-        with st.expander("Editar Registros Existentes"):
-            st.subheader("Editar Registros Existentes")
+    # Edição de Registros Existentes
+    with st.expander("Editar Registros Existentes", expanded=False):
+        st.subheader("Editar Registros Existentes")
 
-            if not df.empty:
-                indices_disponiveis = df.index.tolist()
-                registro_selecionado = st.selectbox("Selecione o número do registro para editar", indices_disponiveis, key='registro_editar')
-                st.subheader(f"Editando registro #{registro_selecionado}")
+        if 'dados_formulario' in st.session_state and st.session_state['dados_formulario']:
+            indices_disponiveis = list(range(len(st.session_state['dados_formulario'])))
+            registro_selecionado = st.selectbox("Selecione o número do registro para editar", indices_disponiveis, key='registro_editar')
+            st.subheader(f"Editando registro #{registro_selecionado}")
 
-                # Obter dados do registro selecionado
-                registro_data = df.loc[registro_selecionado]
+            # Obter dados do registro selecionado
+            registro_data = st.session_state['dados_formulario'][registro_selecionado]
 
-                area_options = list(area_responsavel.keys())
-                area_value = registro_data['Area']
-                area_index = area_options.index(area_value) if area_value in area_options else 0
+            area_options = list(area_responsavel.keys())
+            area_value = registro_data['Area']
+            area_index = area_options.index(area_value) if area_value in area_options else 0
 
-                area_edit = st.selectbox('Área', options=area_options, index=area_index)
-                responsavel_edit = st.text_input("Responsável", value=registro_data['Responsavel'])
-                local_edit = st.text_input('Local', value=registro_data['Local'])
-                acao_edit = st.text_input('Ação (O que)', value=registro_data['Acao'])
-                impacto_edit = st.text_area('Impacto', value=registro_data['Impacto'])
-                inicio_plan_edit = st.date_input('Início Planejado', value=registro_data['Inicio Plan'])
-                fim_plan_edit = st.date_input('Fim Planejado', value=registro_data['Fim Plan'])
-                inicio_real_edit = st.date_input('Início Real (opcional)', value=registro_data['Inicio Real'] if pd.notna(registro_data['Inicio Real']) else None)
-                fim_real_edit = st.date_input('Fim Real (opcional)', value=registro_data['Fim Real'] if pd.notna(registro_data['Fim Real']) else None)
+            area_edit = st.selectbox('Área', options=area_options, index=area_index)
+            responsavel_edit = st.text_input("Responsável", value=registro_data['Responsavel'])
+            local_edit = st.text_input('Local', value=registro_data['Local'])
+            acao_edit = st.text_input('Ação (O que)', value=registro_data['Acao'])
+            impacto_edit = st.text_area('Impacto', value=registro_data['Impacto'])
+            inicio_plan_edit = st.date_input('Início Planejado', value=registro_data['Inicio Plan'], key='inicio_plan_edit')
+            fim_plan_edit = st.date_input('Fim Planejado', value=registro_data['Fim Plan'], key='fim_plan_edit')
+            inicio_real_edit = st.date_input('Início Real (opcional)', value=registro_data['Inicio Real'] if pd.notna(registro_data['Inicio Real']) else None, key='inicio_real_edit')
+            fim_real_edit = st.date_input('Fim Real (opcional)', value=registro_data['Fim Real'] if pd.notna(registro_data['Fim Real']) else None, key='fim_real_edit')
 
-                observacoes_edit = st.text_area("Observações", value=registro_data['Observações'] if pd.notna(registro_data['Observações']) else '')
-                nota_trabalho_edit = st.text_area("Nota de Trabalho", value=registro_data['Nota de Trabalho'] if pd.notna(registro_data['Nota de Trabalho']) else '')
+            # Novos campos para editar
+            inicio_repro_edit = st.date_input('Início(REPRO)', value=registro_data['Inicio(REPRO)'] if pd.notna(registro_data['Inicio(REPRO)']) else None, key='inicio_repro_edit')
+            fim_repro_edit = st.date_input('Fim(REPRO)', value=registro_data['Fim(REPRO)'] if pd.notna(registro_data['Fim(REPRO)']) else None, key='fim_repro_edit')
 
-                resultado_esperado = registro_data['O resultado esperado foi alcançado?'] if pd.notna(registro_data['O resultado esperado foi alcançado?']) else 'Sim'  # Valor padrão
-                opcoes_resultado = ['Sim', 'Não', 'Parcialmente']
+            nivel_edit = st.selectbox('Nível', options=[f'N{n}' for n in range(1, 51)], index=int(registro_data['Nível'][1:]))
+            
+            # Selectbox para alterar o status manualmente
+            status_opcoes = [''] + ['Concluída', 'Atrasada', 'Em andamento', 'Programada', '-']  # Opção vazia adicionada
+            status_preenchido = st.selectbox("Status", options=status_opcoes)  # O padrão é um campo vazio
 
-                if resultado_esperado not in opcoes_resultado:
-                    resultado_esperado = 'Sim'  # Ou qualquer valor padrão que você desejar
+            observacoes_edit = st.text_area("Observações", value=registro_data['Observações'] if pd.notna(registro_data['Observações']) else '')
+            nota_trabalho_edit = st.text_area("Nota de Trabalho", value=registro_data['Nota de Trabalho'] if pd.notna(registro_data['Nota de Trabalho']) else '')
 
-                index = opcoes_resultado.index(resultado_esperado)
+            resultado_esperado = registro_data['O resultado esperado foi alcançado?'] if pd.notna(registro_data['O resultado esperado foi alcançado?']) else 'Sim'  # Valor padrão
+            opcoes_resultado = ['Sim', 'Não', 'Parcialmente']
 
-                opcoes_resultado = ['SIM', 'NÃO']
-                resultado_esperado_alcancado_edit = st.selectbox(
+            if resultado_esperado not in opcoes_resultado:
+                resultado_esperado = 'Sim'  # Ou qualquer valor padrão que você desejar
+
+            index = opcoes_resultado.index(resultado_esperado)
+
+            opcoes_resultado = ['SIM', 'NÃO']
+            resultado_esperado_alcancado_edit = st.selectbox(
                 "O resultado esperado foi alcançado?",
                 opcoes_resultado,
                 index=0  # Definindo "SIM" como padrão
-                )
+            )
 
-                if st.button("Atualizar Registro"):
-                    # Validação das datas
-                    if inicio_plan_edit > fim_plan_edit:
-                        st.error("A data de início planejado não pode ser após a data de fim planejado.")
-                    elif inicio_real_edit and fim_real_edit and inicio_real_edit > fim_real_edit:
-                        st.error("A data de início real não pode ser após a data de fim real.")
-                    elif not responsavel_edit:  # Verifica se o campo de responsáveis está vazio
-                        st.error("O campo de responsável não pode estar vazio.")
-                    else:
-                        # Atualiza os dados no DataFrame original
-                        df.at[registro_selecionado, 'Area'] = area_edit
-                        df.at[registro_selecionado, 'Responsavel'] = responsavel_edit
-                        df.at[registro_selecionado, 'Local'] = local_edit
-                        df.at[registro_selecionado, 'Acao'] = acao_edit
-                        df.at[registro_selecionado, 'Impacto'] = impacto_edit
-                        df.at[registro_selecionado, 'Inicio Plan'] = inicio_plan_edit
-                        df.at[registro_selecionado, 'Fim Plan'] = fim_plan_edit
-                        df.at[registro_selecionado, 'Inicio Real'] = inicio_real_edit
-                        df.at[registro_selecionado, 'Fim Real'] = fim_real_edit
-                        df.at[registro_selecionado, 'Observações'] = observacoes_edit
-                        df.at[registro_selecionado, 'Nota de Trabalho'] = nota_trabalho_edit
-                        df.at[registro_selecionado, 'O resultado esperado foi alcançado?'] = resultado_esperado_alcancado_edit
-                        df.at[registro_selecionado, 'Se não, o que será feito?'] = se_nao_o_que_fazer
+            if st.button("Atualizar Registro"):
+                # Validação das datas
+                if inicio_plan_edit and fim_plan_edit and inicio_plan_edit > fim_plan_edit:
+                    st.error("A data de início planejado não pode ser após a data de fim planejado.")
+                elif inicio_real_edit and fim_real_edit and inicio_real_edit > fim_real_edit:
+                    st.error("A data de início real não pode ser após a data de fim real.")
+                elif not responsavel_edit:
+                    st.error("O campo de responsável não pode estar vazio.")
+                else:
+                    # Atualiza os dados no DataFrame original
+                    st.session_state['dados_formulario'][registro_selecionado]['Area'] = area_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Responsavel'] = responsavel_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Local'] = local_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Acao'] = acao_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Impacto'] = impacto_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Inicio Plan'] = inicio_plan_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Fim Plan'] = fim_plan_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Inicio Real'] = inicio_real_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Fim Real'] = fim_real_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Inicio(REPRO)'] = inicio_repro_edit  # Atualiza o novo campo
+                    st.session_state['dados_formulario'][registro_selecionado]['Fim(REPRO)'] = fim_repro_edit  # Atualiza o novo campo
+                    st.session_state['dados_formulario'][registro_selecionado]['Observações'] = observacoes_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Nota de Trabalho'] = nota_trabalho_edit
+                    st.session_state['dados_formulario'][registro_selecionado]['Nível'] = nivel_edit  # Atualiza o campo Nível
+                    st.session_state['dados_formulario'][registro_selecionado]['O resultado esperado foi alcançado?'] = resultado_esperado_alcancado_edit
 
-                        # Salva as alterações no arquivo
-                        st.session_state['dados_formulario'] = df.to_dict('records')
-                        salvar_dados(df)
-                        st.success("Registro atualizado com sucesso!")
-            else:
-                st.info("Não há registros para editar.")
+                    # Atualiza o status com base no selectbox
+                    if status_preenchido:  # Se o usuário selecionou um status
+                        st.session_state['dados_formulario'][registro_selecionado]['Status'] = status_preenchido
+                    else:  # Caso contrário, calcula o status
+                        st.session_state['dados_formulario'][registro_selecionado]['Status'] = calcular_status(
+                            st.session_state['dados_formulario'][registro_selecionado]['Inicio Real'],
+                            st.session_state['dados_formulario'][registro_selecionado]['Fim Real'],
+                            st.session_state['dados_formulario'][registro_selecionado]['Inicio Plan'],
+                            st.session_state['dados_formulario'][registro_selecionado]['Fim Plan'],
+                            st.session_state['dados_formulario'][registro_selecionado]['Inicio(REPRO)'],
+                            st.session_state['dados_formulario'][registro_selecionado]['Fim(REPRO)']
+                        )
 
+                    # Salva as alterações no arquivo
+                    salvar_dados(pd.DataFrame(st.session_state['dados_formulario']))
+                    st.success("Registro atualizado com sucesso!")
+        else:
+            st.info("Não há registros para editar.")
+
+
+
+# Gráficos
 with tab3:
     st.subheader("Gráficos")
+
     if 'dados_formulario' in st.session_state and st.session_state['dados_formulario']:
         df = pd.DataFrame(st.session_state['dados_formulario'])
-
-        # Verifique se a coluna 'Status' existe; se não, cria ela
-        if 'Status' not in df.columns:
-            df['Status'] = df.apply(lambda row: calcular_status(row['Inicio Real'], row['Fim Real'], row['Fim Plan']), axis=1)
-
-        # Continuar com os outros gráficos...
-        st.subheader("Curva S - Progresso Cumulativo")
-        df_plan = df.copy()
-        df_plan['Valor'] = 1
-        data_inicio = df_plan['Inicio Plan'].min()
-        data_fim = df_plan['Fim Plan'].max()
-        datas = pd.date_range(start=data_inicio, end=data_fim)
-
-        # Converter 'Fim Plan' para datetime.date para comparação
-        df_plan['Fim Plan'] = df_plan['Fim Plan'].apply(lambda x: x if isinstance(x, date) else x.date() if isinstance(x, datetime) else None)
-
-        progresso_planejado = [df_plan[df_plan['Fim Plan'] <= data.date()].Valor.sum() for data in datas]
-        progresso_real = [df_plan[df_plan['Fim Real'].apply(lambda x: pd.Timestamp(x) if pd.notnull(x) else None) <= pd.Timestamp(data)].Valor.sum() for data in datas]
-
-        # Criando o gráfico de Curva S com Plotly
-        fig_s = go.Figure()
-
-        # Adicionando as linhas planejadas
-        fig_s.add_trace(go.Scatter(
-            x=datas, 
-            y=progresso_planejado, 
-            mode='lines+markers', 
-            name='Planejado', 
-            line=dict(color='black'),
-            marker=dict(symbol='circle', size=6)
-        ))
-
-        # Adicionando as linhas reais
-        fig_s.add_trace(go.Scatter(
-            x=datas, 
-            y=progresso_real, 
-            mode='lines+markers', 
-            name='Real', 
-            line=dict(color='orange'),
-            marker=dict(symbol='circle', size=6)
-        ))
-
-        # Configurando o layout do gráfico de Curva S
-        fig_s.update_layout(
-            title="Curva S - Progresso Cumulativo (Planejado vs Real)",
-            xaxis_title="Data",
-            yaxis_title="Progresso (%)",
-            xaxis=dict(tickformat='%d/%m/%Y'),
-            legend=dict(x=0, y=1, bgcolor='rgba(0,0,0,0)'),
-            hovermode="x unified"
-        )
-
-        # Renderizando o gráfico de Curva S
-        st.plotly_chart(fig_s)
-
-        # Gráfico de Barras: Quantidade de Cadastro por Área
-        st.subheader("Quantidade de Cadastro por Área")
         
-        # Contagem de registros por área
-        df['Area'] = df['Area'].str.strip().str.lower()
-        area_count = df['Area'].value_counts()
+        # Convertendo as colunas de data para datetime
+        df['Inicio Plan'] = pd.to_datetime(df['Inicio Plan'], errors='coerce')
+        df['Fim Plan'] = pd.to_datetime(df['Fim Plan'], errors='coerce')
+        df['Fim Real'] = pd.to_datetime(df['Fim Real'], errors='coerce')
+        df['Fim(REPRO)'] = pd.to_datetime(df['Fim(REPRO)'], errors='coerce')
 
-        # Criando o gráfico de barras com Plotly
-        fig_bar = go.Figure([go.Bar(x=area_count.index, y=area_count.values, marker_color='#E8C639', width = 0.4)])
+        data_inicio = df['Inicio Plan'].dropna().min()
+        data_fim = df['Fim Plan'].dropna().max()
 
-        # Configurando o layout do gráfico de barras
-        fig_bar.update_layout(
-            title="Quantidade de Cadastro por Área",
-            xaxis_title="Área",
-            yaxis_title="Quantidade de Cadastros",
-            xaxis_tickangle=-45
-        )
+        if pd.isna(data_inicio) or pd.isna(data_fim):
+            st.warning("As datas de início ou fim planejadas não estão disponíveis. Os gráficos não podem ser criados.")
+        else:
+            datas = pd.date_range(start=data_inicio, end=data_fim)
 
-        # Renderizando o gráfico de barras
-        st.plotly_chart(fig_bar)
-    
-    else:
-        st.write("Nenhum dado disponível para gerar gráficos.")
+    if not df.empty:
+        data_inicio = df['Inicio Plan'].min()
+        data_fim = df['Fim Plan'].max()
+
+        if pd.isna(data_inicio) or pd.isna(data_fim):
+            st.warning("As datas de início ou fim planejadas não estão disponíveis. Os gráficos não podem ser criados.")
+        else:
+            datas = pd.date_range(start=data_inicio, end=data_fim)
+
+            progresso_planejado = [
+                df[df['Fim Plan'].notna() & (df['Fim Plan'] <= data)].shape[0] for data in datas
+            ]
+            progresso_real = [
+                df[df['Fim Real'].notna() & (df['Fim Real'] <= data)].shape[0] for data in datas
+            ]
+            progresso_reprogramado = [
+                df[df['Fim(REPRO)'].notna() & (df['Fim(REPRO)'] <= data)].shape[0] for data in datas
+            ]
+
+            fig_s = go.Figure()
+
+            # Adicionando as linhas planejadas
+            fig_s.add_trace(go.Scatter(
+                x=datas, 
+                y=progresso_planejado, 
+                mode='lines+markers', 
+                name='Planejado', 
+                line=dict(color='black'),
+                marker=dict(symbol='circle', size=6)
+            ))
+
+            # Adicionando as linhas reais
+            fig_s.add_trace(go.Scatter(
+                x=datas, 
+                y=progresso_real, 
+                mode='lines+markers', 
+                name='Real', 
+                line=dict(color='orange'),
+                marker=dict(symbol='circle', size=6)
+            ))
+
+            # Adicionando a linha reprogramada
+            fig_s.add_trace(go.Scatter(
+                x=datas, 
+                y=progresso_reprogramado, 
+                mode='lines+markers', 
+                name='Reprogramado', 
+                line=dict(color='red'),
+                marker=dict(symbol='circle', size=6)
+            ))
+
+            # Adicionando a linha vertical para "Hoje"
+
+            # Verificando se há valores em progresso_planejado, progresso_real e progresso_reprogramado
+            y_max = max(
+                max(progresso_planejado) if progresso_planejado else 0,
+                max(progresso_real) if progresso_real else 0,
+                max(progresso_reprogramado) if progresso_reprogramado else 0
+            )
+
+            hoje = pd.Timestamp(datetime.now().date())
+
+            # Calcular o progresso até hoje
+            progresso_hoje = [
+                df[df['Fim Plan'].notna() & (df['Fim Plan'] <= hoje)].shape[0],
+                df[df['Fim Real'].notna() & (df['Fim Real'] <= hoje)].shape[0],
+                df[df['Fim(REPRO)'].notna() & (df['Fim(REPRO)'] <= hoje)].shape[0]
+            ]
+
+            # Adicionando a linha "Hoje" ao gráfico
+            fig_s.add_trace(go.Scatter(
+                x=[hoje], 
+                y=[progresso_hoje[0]],  # Para o status "Planejado"
+                mode='markers', 
+                name='Hoje', 
+                marker=dict(color='grey', size=6)  # Escolha uma cor para destacar
+            ))
+
+            # Configurando o layout do gráfico de Curva S
+            fig_s.update_layout(
+                title="Curva S - Progresso Cumulativo (Planejado vs Real vs Reprogramado)",
+                xaxis_title="Data",
+                yaxis_title="Progresso (%)",
+                xaxis=dict(tickformat='%d/%m/%Y'),
+                legend=dict(x=0, y=1, bgcolor='rgba(0,0,0,0)'),
+                hovermode="x unified"
+            )
+
+            fig_s.update_yaxes(range=[0, 100])
+            st.plotly_chart(fig_s)
+            
+
+            df['Status'] = df.apply(lambda row: calcular_status(
+                pd.to_datetime(row['Inicio Real']) if pd.notna(row['Inicio Real']) else pd.NaT,
+                pd.to_datetime(row['Fim Real']) if pd.notna(row['Fim Real']) else pd.NaT,
+                pd.to_datetime(row['Inicio Plan']) if pd.notna(row['Inicio Plan']) else pd.NaT,
+                pd.to_datetime(row['Fim Plan']) if pd.notna(row['Fim Plan']) else pd.NaT
+            ), axis=1)
+
+            # Criação de um DataFrame para contagem de registros por status e área
+            df_status_area = df.groupby(['Area', 'Status']).size().reset_index(name='Count')
+
+            # Definindo cores para cada área
+            cores_area = {
+                'Transporte': '#A4450C',  
+                'Infraestrutura': '#F66A6B',  
+                'Desenvolvimento': '#FF4F72',  
+                'Ventilação': '#FBBC00',  
+                'Backlog': '#FF6D01',  
+                'Caldeiraria': '#ED6B3C',  
+                'ObraCivil': '#FF00FF',  
+                'Mec.Rochas': '#943134'   
+            }
+
+            df_status_area['Color'] = df_status_area['Area'].map(cores_area)
+
+            fig_bar = go.Figure()
+
+            df_soma_area = df_status_area.groupby('Area')['Count'].sum().reset_index()
+            soma_area_dict = dict(zip(df_soma_area['Area'], df_soma_area['Count']))
+
+            for area in df_status_area['Area'].unique():
+                filtered_df = df_status_area[df_status_area['Area'] == area]
+                fig_bar.add_trace(go.Bar(
+                    x=filtered_df['Status'],  
+                    y=filtered_df['Count'],
+                    name=area,  
+                    marker_color=cores_area[area],  
+                    width=0.4,
+                    hovertemplate=f'Área: {area}<br>Total: {soma_area_dict[area]}<extra></extra>'
+                ))
+
+            fig_bar.update_layout(
+                title="Status das Ações (total) - Gráfico Empilhado",
+                xaxis_title="Status",
+                yaxis_title="Quantidade de Cadastros",
+                barmode='stack',
+                legend_title_text="Área",
+                height=600,
+                legend=dict(
+                    x=1,  # Mover a legenda para fora do gráfico à direita
+                    y=1,  # Posicionar no topo do gráfico
+                    traceorder='normal',
+                    orientation='v'  # Orientação vertical
+                )
+            )
+            st.plotly_chart(fig_bar)
+        
+            if 'Status' not in df.columns:
+                df['Status'] = df.apply(lambda row: calcular_status(
+                    pd.to_datetime(row['Inicio Real']) if pd.notna(row['Inicio Real']) else pd.NaT,
+                    pd.to_datetime(row['Fim Real']) if pd.notna(row['Fim Real']) else pd.NaT,
+                    pd.to_datetime(row['Inicio Plan']) if pd.notna(row['Inicio Plan']) else pd.NaT,
+                    pd.to_datetime(row['Fim Plan']) if pd.notna(row['Fim Plan']) else pd.NaT
+                ), axis=1)
+
+            status_counts = df['Status'].value_counts()
+
+            # Contando a quantidade de cada status, excluindo o status "-"
+            status_counts = status_counts[status_counts.index != '_']
+
+            # Dicionário de cores padrão para os status
+            cores_status = {
+                'Concluída': '#FBBC00',  # Azul
+                'Atrasada': '#943134',   # Vermelho
+                'Em andamento': '#FF6D01', # Laranja
+                'Programada': '#ED6B3C'   # Verde
+            }
+
+            # Criando o gráfico de pizza
+            fig_pizza = go.Figure(data=[go.Pie(
+                labels=status_counts.index, 
+                values=status_counts.values, 
+                marker=dict(colors=[cores_status[status] for status in status_counts.index])
+            )])
+
+            # Atualizando o layout do gráfico
+            fig_pizza.update_layout(
+                title="Distribuição Percentual dos Status das Ações",
+                legend_title="Status",
+                height=400,
+                showlegend=True
+            )
+
+            # Exibindo o gráfico
+            st.plotly_chart(fig_pizza)
 
 # Função para carregar os responsáveis de um arquivo ou criar lista padrão
 def carregar_responsaveis():
