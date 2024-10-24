@@ -558,7 +558,7 @@ with tab3:
                     name=area,  
                     marker_color=cores_area[area],  
                     width=0.4,
-                    hovertemplate=f'Staus: {status}<br>Total: {soma_area_dict[area]}<extra></extra>'
+                    #hovertemplate=f'Staus: {status}<br>Total: {soma_area_dict[area]}<extra></extra>'
                 ))
 
             fig_bar.update_layout(
