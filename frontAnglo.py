@@ -690,60 +690,64 @@ with tab3:
                 col1, col2, col3 = st.columns(3)
 
                 # Cartão para atividades planejadas (com cor)
+                col1, col2, col3 = st.columns(3)
+
+                # Cartão para atividades planejadas (com cor)
                 with col1:
                     st.markdown(
                         """
-                        <div style="background-color:#E8F8F5;padding:10px;border-radius:10px;text-align:center">
+                        <div style="background-color:#E8F8F5;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
                             <h3 style="color:#1ABC9C">Planejadas</h3>
                             <h1 style="color:#1ABC9C">{:.0f}%</h1>
                         </div>
                         """.format(porcentagem_planejada), unsafe_allow_html=True
                     )
-                
+
                 # Cartão para atividades concluídas (com cor)
                 with col2:
                     st.markdown(
                         """
-                        <div style="background-color:#FCF3CF;padding:10px;border-radius:10px;text-align:center">
+                        <div style="background-color:#FCF3CF;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
                             <h3 style="color:#F39C12">Concluídas</h3>
                             <h1 style="color:#F39C12">{:.0f}%</h1>
                         </div>
                         """.format(porcentagem_concluida), unsafe_allow_html=True
                     )
-                
+
                 # Cartão para atividades com impacto (com cor)
                 with col3:
                     st.markdown(
                         """
-                        <div style="background-color:#FDEDEC;padding:10px;border-radius:10px;text-align:center">
+                        <div style="background-color:#FDEDEC;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
                             <h3 style="color:#E74C3C">Com Impacto</h3>
                             <h1 style="color:#E74C3C">{:.0f}%</h1>
                         </div>
                         """.format(porcentagem_impacto), unsafe_allow_html=True
                     )
-                
-                # Cartão para atividades sem impacto
+
+                # Cartões para atividades sem impacto e total de atividades
                 col4, col5 = st.columns(2)
+
                 with col4:
                     st.markdown(
                         """
-                        <div style="background-color:#F6F6F6;padding:10px;border-radius:10px;text-align:center">
+                        <div style="background-color:#F6F6F6;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
                             <h3 style="color:#7F8C8D">Sem Impacto</h3>
                             <h1 style="color:#7F8C8D">{:.0f}%</h1>
                         </div>
                         """.format(porcentagem_sem_impacto), unsafe_allow_html=True
                     )
-                
-                # Cartão para total de atividades
+
                 with col5:
                     st.markdown(
                         """
-                        <div style="background-color:#D5DBDB;padding:10px;border-radius:10px;text-align:center">
+                        <div style="background-color:#D5DBDB;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
                             <h3 style="color:#566573">Total de Atividades</h3>
                             <h1 style="color:#566573">{}</h1>
                         </div>
                         """.format(total_atividades), unsafe_allow_html=True
                     )
+
 
             # Chamar a função para exibir os cartões estilizados
             exibir_resumo_atividades(df)
