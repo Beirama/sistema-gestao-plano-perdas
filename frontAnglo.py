@@ -149,7 +149,7 @@ with tab1:
         with col3:
             acao = st.text_input("Ação (O que)")
 
-         # Adicionando um campo para o Status com opção vazia
+        # Adicionando um campo para o Status com opção vazia
         status_opcoes = [''] + ['Concluída', 'Atrasada', 'Em andamento', 'Programada', '-']  # Opção vazia adicionada
 
         col4, col5 = st.columns(2)
@@ -196,18 +196,13 @@ with tab1:
         observacoes = st.text_area("Observações", height=150)
         resultado_esperado = st.text_area("O resultado esperado foi alcançado?", height=150)
         se_nao_o_que_fazer = st.text_area("Se não, o que será feito?", height=150)
-    
-
-
+        
         submit = st.form_submit_button("Gravar")
 
         if submit:
-            if novo_corpo:  # Se um novo corpo for fornecido
-                # Adiciona o novo corpo na lista de corpos, se ainda não estiver lá
-                if novo_corpo not in st.session_state['corpos']:
-                    st.session_state['corpos'].append(novo_corpo)
-        if submit:
-            # Adiciona o novo corpo na lista de corpos, se fornecido e não estiver lá
+            corpo_final = novo_corpo if novo_corpo else corpo  # Usa o novo corpo se fornecido, caso contrário, usa o corpo selecionado
+            
+            # Se um novo corpo for fornecido, adiciona à lista de corpos
             if novo_corpo and novo_corpo not in st.session_state['corpos']:
                 st.session_state['corpos'].append(novo_corpo)
 
@@ -228,7 +223,7 @@ with tab1:
                 'Area': area,
                 'Local': local,
                 'Acao': acao,
-                'Corpo': corpo,
+                'Corpo': corpo_final,  # Usa o corpo final
                 'Nível': nivel,
                 'Impacto': impacto,
                 'Responsavel': responsavel,
@@ -244,9 +239,10 @@ with tab1:
                 'Se não, o que será feito?': se_nao_o_que_fazer,
                 'Status': status  # Armazenando o status aqui
             }
+            
+            # Adiciona o novo registro na tabela de dados
             st.session_state['dados_formulario'].append(novo_dado)
             st.success("Informações enviadas com sucesso!")
-
 
 # Aba 2: TABELAS
 with tab2:
@@ -289,23 +285,25 @@ with tab2:
         st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
         st.dataframe(df)
 
-        # Tabela de últimos 10 registros atrasados
-        st.subheader("Últimos 10 Registros Atrasados")
+        # Calcular a última e a próxima semana
+        hoje = datetime.now()
+        ultima_semana = hoje.isocalendar()[1] - 1  # Última semana do ano
+        proxima_semana = hoje.isocalendar()[1] + 1  # Próxima semana do ano
+        
+        # Filtrando apenas os dados da última semana passada
+        df_ultima_semana = df[df['Semana do Ano'] == ultima_semana]
 
-        # Filtrando registros atrasados
-        registros_atrasados = df[df['Status'] == 'Atrasada']
+        # Exibe a tabela da última semana
+        #st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
+        #st.subheader("Tabela da Última Semana Passada")
+        #st.dataframe(df_ultima_semana)
 
-        # Ordenar pelos mais atrasados
-        registros_atrasados = registros_atrasados.sort_values(by='Fim Plan', ascending=True)
+        # Filtrando apenas os dados da próxima semana
+        df_proxima_semana = df[df['Semana do Ano'] == proxima_semana]
 
-        # Selecionar os últimos 10
-        ultimos_10_atrasados = registros_atrasados.head(10)
-
-        # Exibir a tabela se houver registros atrasados
-        if not ultimos_10_atrasados.empty:
-            st.dataframe(ultimos_10_atrasados)
-        else:
-            st.write("Não há registros atrasados.")
+        # Exibe a tabela da próxima semana
+        #st.subheader("Tabela da Próxima Semana")
+        #st.dataframe(df_proxima_semana)
     else:
         st.write("Nenhum dado cadastrado ainda.")
 
@@ -555,12 +553,12 @@ with tab3:
             for area in df_status_area['Area'].unique():
                 filtered_df = df_status_area[df_status_area['Area'] == area]
                 fig_bar.add_trace(go.Bar(
-                    x=filtered_df['Status'],  
+                    x=filtered_df['Area'],  
                     y=filtered_df['Count'],
                     name=area,  
                     marker_color=cores_area[area],  
                     width=0.4,
-                    hovertemplate=f'Área: {area}<br>Total: {soma_area_dict[area]}<extra></extra>'
+                    hovertemplate=f'Staus: {status}<br>Total: {soma_area_dict[area]}<extra></extra>'
                 ))
 
             fig_bar.update_layout(
@@ -617,6 +615,139 @@ with tab3:
 
             # Exibindo o gráfico
             st.plotly_chart(fig_pizza)
+
+                    # Tabela de últimos 10 registros atrasados
+            st.subheader("Últimos 10 Registros Atrasados")
+
+            # Filtrando registros atrasados
+            registros_atrasados = df[df['Status'] == 'Atrasada']
+
+            # Ordenar pelos mais atrasados
+            registros_atrasados = registros_atrasados.sort_values(by='Fim Plan', ascending=True)
+
+            # Selecionar os últimos 10
+            ultimos_10_atrasados = registros_atrasados.head(10)
+
+                    # Adicionar a coluna 'Semana do Ano' baseada na coluna 'Inicio Plan'
+            df['Semana do Ano'] = df['Inicio Plan'].dt.isocalendar().week
+
+            # Exibir a tabela se houver registros atrasados
+            if not ultimos_10_atrasados.empty:
+                st.dataframe(ultimos_10_atrasados)
+            else:
+                st.write("Não há registros atrasados.")
+
+            # Calcular a última e a próxima semana
+            hoje = datetime.now()
+            ultima_semana = hoje.isocalendar()[1] - 1  # Última semana do ano
+            proxima_semana = hoje.isocalendar()[1] + 1  # Próxima semana do ano
+            
+            # Filtrando apenas os dados da última semana passada
+            df_ultima_semana = df[df['Semana do Ano'] == ultima_semana]
+
+            # Exibe a tabela da última semana
+            st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
+            st.subheader("Tabela da Última Semana Passada")
+            st.dataframe(df_ultima_semana)
+
+            # Filtrando apenas os dados da próxima semana
+            df_proxima_semana = df[df['Semana do Ano'] == proxima_semana]
+
+            # Exibe a tabela da próxima semana
+            st.subheader("Tabela da Próxima Semana")
+            st.dataframe(df_proxima_semana)
+
+                    # Função para exibir as porcentagens de atividades e de impacto
+
+            # Função para exibir as porcentagens de atividades e de impacto em cartões aprimorados
+            def exibir_resumo_atividades(df):
+                total_atividades = df.shape[0]
+                
+                # Calcula o total de atividades concluídas
+                atividades_concluidas = df[df['Status'] == 'Concluída'].shape[0]
+                
+                # Verifica se não há atividades concluídas
+                if total_atividades == 0:
+                    porcentagem_planejada = 0.0
+                    porcentagem_concluida = 0.0
+                elif atividades_concluidas == 0:
+                    porcentagem_planejada = 100.0  # Se nenhuma atividade for concluída, 100% planejadas
+                    porcentagem_concluida = 0.0
+                else:
+                    # Se houver atividades concluídas, calcula as porcentagens
+                    porcentagem_planejada = 100.0  # Mantém 100% planejada
+                    porcentagem_concluida = (atividades_concluidas / total_atividades * 100)
+
+                # Cálculo de atividades com e sem impacto
+                atividades_com_impacto = df[df['Impacto'].notna() & (df['Impacto'] != '')].shape[0]
+                atividades_sem_impacto = total_atividades - atividades_com_impacto
+
+                if total_atividades > 0:
+                    porcentagem_impacto = (atividades_com_impacto / total_atividades * 100)
+                    porcentagem_sem_impacto = (atividades_sem_impacto / total_atividades * 100)
+                else:
+                    porcentagem_impacto = porcentagem_sem_impacto = 0.0
+
+                # Criando os cartões com st.columns() para distribuir o layout com ícones e cores
+                col1, col2, col3 = st.columns(3)
+
+                # Cartão para atividades planejadas (com cor e ícone)
+                with col1:
+                    st.markdown(
+                        """
+                        <div style="background-color:#E8F8F5;padding:10px;border-radius:10px;text-align:center">
+                            <h3 style="color:#1ABC9C"><i class="fas fa-calendar-alt"></i> Planejadas</h3>
+                            <h1 style="color:#1ABC9C">{:.0f}%</h1>
+                        </div>
+                        """.format(porcentagem_planejada), unsafe_allow_html=True
+                    )
+                
+                # Cartão para atividades concluídas (com cor e ícone)
+                with col2:
+                    st.markdown(
+                        """
+                        <div style="background-color:#FCF3CF;padding:10px;border-radius:10px;text-align:center">
+                            <h3 style="color:#F39C12"><i class="fas fa-check-circle"></i> Concluídas</h3>
+                            <h1 style="color:#F39C12">{:.0f}%</h1>
+                        </div>
+                        """.format(porcentagem_concluida), unsafe_allow_html=True
+                    )
+                
+                # Cartão para atividades com impacto (com cor e ícone)
+                with col3:
+                    st.markdown(
+                        """
+                        <div style="background-color:#FDEDEC;padding:10px;border-radius:10px;text-align:center">
+                            <h3 style="color:#E74C3C"><i class="fas fa-exclamation-circle"></i> Com Impacto</h3>
+                            <h1 style="color:#E74C3C">{:.0f}%</h1>
+                        </div>
+                        """.format(porcentagem_impacto), unsafe_allow_html=True
+                    )
+                
+                # Cartão para atividades sem impacto (com cor e ícone)
+                col4, col5 = st.columns(2)
+                with col4:
+                    st.markdown(
+                        """
+                        <div style="background-color:#F6F6F6;padding:10px;border-radius:10px;text-align:center">
+                            <h3 style="color:#7F8C8D"><i class="fas fa-minus-circle"></i> Sem Impacto</h3>
+                            <h1 style="color:#7F8C8D">{:.0f}%</h1>
+                        </div>
+                        """.format(porcentagem_sem_impacto), unsafe_allow_html=True
+                    )
+                
+                # Cartão para total de atividades (com cor e ícone)
+                with col5:
+                    st.markdown(
+                        """
+                        <div style="background-color:#D5DBDB;padding:10px;border-radius:10px;text-align:center">
+                            <h3 style="color:#566573"><i class="fas fa-tasks"></i> Total de Atividades</h3>
+                            <h1 style="color:#566573">{}</h1>
+                        </div>
+                        """.format(total_atividades), unsafe_allow_html=True
+                    )
+            # Chamar a função para exibir os cartões estilizados
+            exibir_resumo_atividades(df)
 
 # Função para carregar os responsáveis de um arquivo ou criar lista padrão
 def carregar_responsaveis():
