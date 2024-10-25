@@ -7,18 +7,8 @@ import openpyxl
 import matplotlib.dates as mdates
 from wordcloud import WordCloud
 import plotly.graph_objs as go
+import os
 
-def salvar_dados(df):
-    # Salvar os dados em um arquivo Excel local sempre que forem atualizados
-    df.to_excel('dados_projeto.xlsx', index=False)
-
-def carregar_dados():
-    try:
-        df = pd.read_excel('dados_projeto.xlsx')
-    except FileNotFoundError:
-        # Caso o arquivo ainda não exista, cria um DataFrame vazio com as colunas necessárias
-        df = pd.DataFrame(columns=['Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real', 'Status', 'Semana do ano'])
-    return df
 
 # Função para calcular status automaticamente
 def calcular_status(inicio_real, fim_real, inicio_plan, fim_plan, inicio_repro=None, fim_repro=None):
@@ -81,6 +71,10 @@ def salvar_mapeamento_area_responsavel(mapeamento):
     df_map = pd.DataFrame(list(mapeamento.items()), columns=['Área', 'Responsável'])
     df_map.to_csv('area_responsavel.csv', index=False)
 
+def salvar_dados(df):
+    caminho_arquivo = os.path.join(os.getcwd(), 'dados_projeto.xlsx')
+    df.to_excel(caminho_arquivo, index=False)
+
 # Carregar dados
 def carregar_dados():
     required_columns = [
@@ -122,6 +116,10 @@ if 'corpos' not in st.session_state:
 area_responsavel = carregar_mapeamento_area_responsavel()
 
 df = carregar_dados()
+
+# Se houver dados no arquivo, carregue-os no session_state
+if df.shape[0] > 0:
+    st.session_state['dados_formulario'] = df.to_dict(orient='records')
 
 # Convertendo colunas para datetime
 df['Inicio Plan'] = converter_para_datetime(df['Inicio Plan'])
@@ -251,9 +249,16 @@ with tab1:
                 'Status': status  # Armazenando o status aqui
             }
             
-            # Adiciona o novo registro na tabela de dados
+            # Adiciona o novo registro ao session_state
             st.session_state['dados_formulario'].append(novo_dado)
-            st.success("Informações enviadas com sucesso!")
+            
+            # Converte o session_state para um DataFrame
+            df_atualizado = pd.DataFrame(st.session_state['dados_formulario'])
+            
+            # Salva o DataFrame no arquivo Excel
+            salvar_dados(df_atualizado)
+            
+            st.success("Informações enviadas e salvas com sucesso!")
 
 # Aba 2: TABELAS
 with tab2:
@@ -339,14 +344,37 @@ with tab2:
             local_edit = st.text_input('Local', value=registro_data['Local'])
             acao_edit = st.text_input('Ação (O que)', value=registro_data['Acao'])
             impacto_edit = st.text_area('Impacto', value=registro_data['Impacto'])
-            inicio_plan_edit = st.date_input('Início Planejado', value=registro_data['Inicio Plan'], key='inicio_plan_edit')
-            fim_plan_edit = st.date_input('Fim Planejado', value=registro_data['Fim Plan'], key='fim_plan_edit')
-            inicio_real_edit = st.date_input('Início Real (opcional)', value=registro_data['Inicio Real'] if pd.notna(registro_data['Inicio Real']) else None, key='inicio_real_edit')
-            fim_real_edit = st.date_input('Fim Real (opcional)', value=registro_data['Fim Real'] if pd.notna(registro_data['Fim Real']) else None, key='fim_real_edit')
 
-            # Novos campos para editar
-            inicio_repro_edit = st.date_input('Início(REPRO)', value=registro_data['Inicio(REPRO)'] if pd.notna(registro_data['Inicio(REPRO)']) else None, key='inicio_repro_edit')
-            fim_repro_edit = st.date_input('Fim(REPRO)', value=registro_data['Fim(REPRO)'] if pd.notna(registro_data['Fim(REPRO)']) else None, key='fim_repro_edit')
+            inicio_plan_edit = st.date_input(
+                'Início Planejado', 
+                value=registro_data['Inicio Plan'].date() if pd.notna(registro_data['Inicio Plan']) and isinstance(registro_data['Inicio Plan'], pd.Timestamp) else None,
+                key='inicio_plan_edit'
+            )
+            fim_plan_edit = st.date_input(
+                'Fim Planejado', 
+                value=registro_data['Fim Plan'].date() if pd.notna(registro_data['Fim Plan']) and isinstance(registro_data['Fim Plan'], pd.Timestamp) else None,
+                key='fim_plan_edit'
+            )
+            inicio_real_edit = st.date_input(
+                'Início Real (opcional)', 
+                value=registro_data['Inicio Real'].date() if pd.notna(registro_data['Inicio Real']) and isinstance(registro_data['Inicio Real'], pd.Timestamp) else None, 
+                key='inicio_real_edit'
+            )
+            fim_real_edit = st.date_input(
+                'Fim Real (opcional)', 
+                value=registro_data['Fim Real'].date() if pd.notna(registro_data['Fim Real']) and isinstance(registro_data['Fim Real'], pd.Timestamp) else None, 
+                key='fim_real_edit'
+            )
+            inicio_repro_edit = st.date_input(
+                'Início(REPRO)', 
+                value=registro_data['Inicio(REPRO)'].date() if pd.notna(registro_data['Inicio(REPRO)']) and isinstance(registro_data['Inicio(REPRO)'], pd.Timestamp) else None, 
+                key='inicio_repro_edit'
+            )
+            fim_repro_edit = st.date_input(
+                'Fim(REPRO)', 
+                value=registro_data['Fim(REPRO)'].date() if pd.notna(registro_data['Fim(REPRO)']) and isinstance(registro_data['Fim(REPRO)'], pd.Timestamp) else None, 
+                key='fim_repro_edit'
+            )
 
             nivel_edit = st.selectbox('Nível', options=[f'N{n}' for n in range(1, 51)], index=int(registro_data['Nível'][1:]))
             
@@ -414,10 +442,20 @@ with tab2:
                     # Salva as alterações no arquivo
                     salvar_dados(pd.DataFrame(st.session_state['dados_formulario']))
                     st.success("Registro atualizado com sucesso!")
+
+        # Botão de apagar registro
+        if st.button("Apagar Registro"):
+            # Remover o registro selecionado
+            st.session_state['dados_formulario'].pop(registro_selecionado)
+            
+            # Atualizar o DataFrame e salvar
+            df_atualizado = pd.DataFrame(st.session_state['dados_formulario'])
+            salvar_dados(df_atualizado)
+            
+            st.success(f"Registro #{registro_selecionado} apagado com sucesso!")
+
         else:
             st.info("Não há registros para editar.")
-
-
 
 # Gráficos
 with tab3:
