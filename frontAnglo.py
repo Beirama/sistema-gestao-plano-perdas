@@ -8,6 +8,17 @@ import matplotlib.dates as mdates
 from wordcloud import WordCloud
 import plotly.graph_objs as go
 
+def salvar_dados(df):
+    # Salvar os dados em um arquivo Excel local sempre que forem atualizados
+    df.to_excel('dados_projeto.xlsx', index=False)
+
+def carregar_dados():
+    try:
+        df = pd.read_excel('dados_projeto.xlsx')
+    except FileNotFoundError:
+        # Caso o arquivo ainda não exista, cria um DataFrame vazio com as colunas necessárias
+        df = pd.DataFrame(columns=['Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Inicio Plan', 'Fim Plan', 'Inicio Real', 'Fim Real', 'Status', 'Semana do ano'])
+    return df
 
 # Função para calcular status automaticamente
 def calcular_status(inicio_real, fim_real, inicio_plan, fim_plan, inicio_repro=None, fim_repro=None):
