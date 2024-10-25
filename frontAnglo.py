@@ -599,15 +599,17 @@ with tab3:
             df_soma_area = df_status_area.groupby('Area')['Count'].sum().reset_index()
             soma_area_dict = dict(zip(df_soma_area['Area'], df_soma_area['Count']))
 
+            # Adicionando as barras para cada área e status
             for area in df_status_area['Area'].unique():
                 filtered_df = df_status_area[df_status_area['Area'] == area]
                 fig_bar.add_trace(go.Bar(
-                    x=filtered_df['Area'],  
-                    y=filtered_df['Count'],
+                    x=filtered_df['Area'],  # Status no eixo X
+                    y=filtered_df['Count'],   # Contagem no eixo Y
                     name=area,  
                     marker_color=cores_area[area],  
                     width=0.4,
-                    #hovertemplate=f'Staus: {status}<br>Total: {soma_area_dict[area]}<extra></extra>'
+                    hovertemplate='Status: %{customdata[0]}<br>Area: %{x}<br>Total: %{y}<extra></extra>',  # Mostra área, status e total
+                    customdata=filtered_df[['Status']].values  # Passa a área como dado personalizado
                 ))
 
             fig_bar.update_layout(
