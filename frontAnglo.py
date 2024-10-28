@@ -667,8 +667,8 @@ with tab3:
             # Exibindo o gráfico
             st.plotly_chart(fig_pizza)
 
-                    # Tabela de últimos 10 registros atrasados
-            st.subheader("Últimos 10 Registros Atrasados")
+                    # Tabela de últimos 5 registros atrasados
+            st.subheader("Últimos 5 Registros Atrasados")
 
             # Filtrando registros atrasados
             registros_atrasados = df[df['Status'] == 'Atrasada']
@@ -676,15 +676,15 @@ with tab3:
             # Ordenar pelos mais atrasados
             registros_atrasados = registros_atrasados.sort_values(by='Fim Plan', ascending=True)
 
-            # Selecionar os últimos 10
-            ultimos_10_atrasados = registros_atrasados.head(10)
+            # Selecionar os últimos 5
+            ultimos_5_atrasados = registros_atrasados.head(5)
 
                     # Adicionar a coluna 'Semana do Ano' baseada na coluna 'Inicio Plan'
             df['Semana do Ano'] = df['Inicio Plan'].dt.isocalendar().week
 
             # Exibir a tabela se houver registros atrasados
-            if not ultimos_10_atrasados.empty:
-                st.dataframe(ultimos_10_atrasados)
+            if not ultimos_5_atrasados.empty:
+                st.dataframe(ultimos_5_atrasados)
             else:
                 st.write("Não há registros atrasados.")
 
