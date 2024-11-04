@@ -29,7 +29,7 @@ def calcular_status(inicio_real, fim_real, inicio_plan, fim_plan, inicio_repro=N
     if pd.isna(fim_plan) and inicio_plan < hoje:
         return "Atrasada"
     # Programada: Início planejado é maior que hoje
-    elif pd.isna(fim_plan) and inicio_plan > hoje:
+    elif (pd.isna(fim_plan) and inicio_plan > hoje) or (not pd.isna(fim_plan) and fim_plan > hoje):
         return "Programada" 
     # Concluída: Fim real não está vazio
     elif not pd.isna(fim_real):
@@ -78,9 +78,9 @@ def salvar_dados(df):
 # Carregar dados
 def carregar_dados():
     required_columns = [
-        'Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Dias', 'Inicio Plan',
+        'Area', 'Local', 'Acao', 'Impacto', 'Responsavel', 'Inicio Plan',
         'Fim Plan', 'Inicio Real', 'Fim Real', 'Status', 'Observações', 'Nota de Trabalho',
-        'O resultado esperado foi alcançado?', 'Se não, o que será feito?', 'Classificação Impacto', 'Alerta',
+        'O resultado esperado foi alcançado?', 'Se não, o que será feito?', 'Classificação Impacto',
         'Corpo', 'Nível', 'Inicio(REPRO)', 'Fim(REPRO)'  # Novas colunas adicionadas
     ]
     try:
@@ -443,16 +443,18 @@ with tab2:
                     salvar_dados(pd.DataFrame(st.session_state['dados_formulario']))
                     st.success("Registro atualizado com sucesso!")
 
-        # Botão de apagar registro
-        if st.button("Apagar Registro"):
-            # Remover o registro selecionado
-            st.session_state['dados_formulario'].pop(registro_selecionado)
-            
-            # Atualizar o DataFrame e salvar
-            df_atualizado = pd.DataFrame(st.session_state['dados_formulario'])
-            salvar_dados(df_atualizado)
-            
-            st.success(f"Registro #{registro_selecionado} apagado com sucesso!")
+        # Verifica se existem registros antes de exibir o botão de apagar
+        if len(st.session_state['dados_formulario']) > 0:
+            # Botão de apagar registro
+            if st.button("Apagar Registro"):
+                # Remover o registro selecionado
+                st.session_state['dados_formulario'].pop(registro_selecionado)
+                
+                # Atualizar o DataFrame e salvar
+                df_atualizado = pd.DataFrame(st.session_state['dados_formulario'])
+                salvar_dados(df_atualizado)
+                
+                st.success(f"Registro #{registro_selecionado} apagado com sucesso!")
 
         else:
             st.info("Não há registros para editar.")
@@ -481,6 +483,12 @@ with tab3:
     if not df.empty:
         data_inicio = df['Inicio Plan'].min()
         data_fim = df['Fim Plan'].max()
+
+        # Convertendo as colunas de data para datetime
+        df['Inicio Plan'] = pd.to_datetime(df['Inicio Plan'], errors='coerce')
+        df['Fim Plan'] = pd.to_datetime(df['Fim Plan'], errors='coerce')
+        df['Fim Real'] = pd.to_datetime(df['Fim Real'], errors='coerce')
+        df['Fim(REPRO)'] = pd.to_datetime(df['Fim(REPRO)'], errors='coerce')
 
         if pd.isna(data_inicio) or pd.isna(data_fim):
             st.warning("As datas de início ou fim planejadas não estão disponíveis. Os gráficos não podem ser criados.")
@@ -566,7 +574,7 @@ with tab3:
                 hovermode="x unified"
             )
 
-            fig_s.update_yaxes(range=[0, 100])
+            fig_s.update_yaxes(range=[0, 12])
             st.plotly_chart(fig_s)
             
 
