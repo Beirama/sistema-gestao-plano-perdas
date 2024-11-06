@@ -141,14 +141,14 @@ with tab1:
         
         # Mapeamento de Área e Responsável
         area_responsavel_map = {
-            'Transporte': 'Renan Tales',
-            'Infraestrutura': 'Jayr Rodrigues',
-            'Desenvolvimento': 'Felipe Zanela',
-            'Ventilação': 'Geraldo Duarte',
-            'Backlog': 'Osman Pereira',
-            'Caldeiraria': 'Darley',
-            'ObraCivil': 'Darley',
-            'Mec.Rochas': 'Jeferson Lage'
+            'Transporte': 'RENAN TALES',
+            'Infraestrutura': 'JAYR RODRIGUES',
+            'Desenvolvimento': 'FELIPE ZANELA',
+            'Ventilação': 'GERALDO DUARTE',
+            'Backlog': 'OSMAN PEREIRA',
+            'Caldeiraria': 'DARLEY',
+            'ObraCivil': 'DARLEY',
+            'Mec.Rochas': 'JEFERSON LAGE'
         }
 
         with col1:
@@ -291,14 +291,28 @@ with tab2:
         # Adicionar a coluna 'Semana do Ano' baseada na coluna 'Inicio Plan'
         df['Semana do Ano'] = df['Inicio Plan'].dt.isocalendar().week
 
+        # Converte colunas para garantir que os tipos estão corretos para exibição
+        df['Inicio Plan'] = pd.to_datetime(df['Inicio Plan'], errors='coerce')
+        df['Fim Plan'] = pd.to_datetime(df['Fim Plan'], errors='coerce')
+        df['Inicio Real'] = pd.to_datetime(df['Inicio Real'], errors='coerce')
+        df['Fim Real'] = pd.to_datetime(df['Fim Real'], errors='coerce')
+        df['Inicio(REPRO)'] = pd.to_datetime(df['Inicio(REPRO)'], errors='coerce')  # Garante o tipo datetime
+        df['Fim(REPRO)'] = pd.to_datetime(df['Fim(REPRO)'], errors='coerce') 
+        df['Status'] = df['Status'].astype(str)  # Converte Status para string
+        df['Area'] = df['Area'].astype(str)      # Converte Area para string
+        df['Impacto'] = df['Impacto'].astype(str)  # Converte Impacto para string
+        for col in df.columns:
+            if df[col].dtype == "object":
+                df[col].fillna('', inplace=True)  # Substitui valores nulos por string vazia em colunas de texto
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                df[col].fillna(0, inplace=True)
+
         # Filtro de área
         area_filtro = st.selectbox("Filtrar por Área", options=['Todas'] + list(area_responsavel.keys()))
         
         if area_filtro != 'Todas':
             df = df[df['Area'] == area_filtro]
 
-        # Exibe a tabela com cabeçalho vermelho
-        st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
         st.dataframe(df)
 
         # Calcular a última e a próxima semana
@@ -348,12 +362,14 @@ with tab2:
             inicio_plan_edit = st.date_input(
                 'Início Planejado', 
                 value=registro_data['Inicio Plan'].date() if pd.notna(registro_data['Inicio Plan']) and isinstance(registro_data['Inicio Plan'], pd.Timestamp) else None,
-                key='inicio_plan_edit'
+                key='inicio_plan_edit',
+                disabled=True
             )
             fim_plan_edit = st.date_input(
                 'Fim Planejado', 
                 value=registro_data['Fim Plan'].date() if pd.notna(registro_data['Fim Plan']) and isinstance(registro_data['Fim Plan'], pd.Timestamp) else None,
-                key='fim_plan_edit'
+                key='fim_plan_edit',
+                disabled=True
             )
             inicio_real_edit = st.date_input(
                 'Início Real (opcional)', 
@@ -559,9 +575,10 @@ with tab3:
             fig_s.add_trace(go.Scatter(
                 x=[hoje], 
                 y=[progresso_hoje[0]],  # Para o status "Planejado"
-                mode='markers', 
-                name='Hoje', 
-                marker=dict(color='grey', size=6)  # Escolha uma cor para destacar
+                mode='lines+markers', 
+                name='Hoje',
+                line=dict(color='blue', dash='dash'), 
+                marker=dict(symbol='circle', size=6)  # Escolha uma cor para destacar
             ))
 
             # Configurando o layout do gráfico de Curva S
@@ -607,17 +624,21 @@ with tab3:
             df_soma_area = df_status_area.groupby('Area')['Count'].sum().reset_index()
             soma_area_dict = dict(zip(df_soma_area['Area'], df_soma_area['Count']))
 
-            # Adicionando as barras para cada área e status
             for area in df_status_area['Area'].unique():
+                # Filtra os dados para a área atual
                 filtered_df = df_status_area[df_status_area['Area'] == area]
+                
+                # Cria uma string de hover para mostrar o total de cada status
+                hover_text = '<br>'.join([f"{status}: {count}" for status, count in zip(filtered_df['Status'], filtered_df['Count'])])
+                
+                # Adiciona uma barra para a área com o texto de hover personalizado
                 fig_bar.add_trace(go.Bar(
-                    x=filtered_df['Area'],  # Status no eixo X
-                    y=filtered_df['Count'],   # Contagem no eixo Y
-                    name=area,  
-                    marker_color=cores_area[area],  
+                    x=[area],  # Nome da área no eixo X
+                    y=[filtered_df['Count'].sum()],  # Soma total dos status para essa área
+                    name=area,
+                    marker_color=cores_area.get(area, '#333333'),  # Obtém a cor da área ou usa uma cor padrão
                     width=0.4,
-                    hovertemplate='Status: %{customdata[0]}<br>Area: %{x}<br>Total: %{y}<extra></extra>',  # Mostra área, status e total
-                    customdata=filtered_df[['Status']].values  # Passa a área como dado personalizado
+                    hovertemplate=f"Área: {area}<br>{hover_text}<extra></extra>"  # Texto de hover com a soma dos status
                 ))
 
             fig_bar.update_layout(
@@ -651,9 +672,9 @@ with tab3:
 
             # Dicionário de cores padrão para os status
             cores_status = {
-                'Concluída': '#FBBC00',  # Azul
-                'Atrasada': '#943134',   # Vermelho
-                'Em andamento': '#FF6D01', # Laranja
+                'Concluída': '#8E44AD',  # Azul
+                'Atrasada': '#E74C3C',   # Vermelho
+                'Em andamento': '#F39C12', # Laranja
                 'Programada': '#ED6B3C'   # Verde
             }
 
@@ -690,6 +711,19 @@ with tab3:
                     # Adicionar a coluna 'Semana do Ano' baseada na coluna 'Inicio Plan'
             df['Semana do Ano'] = df['Inicio Plan'].dt.isocalendar().week
 
+            df['Inicio Plan'] = pd.to_datetime(df['Inicio Plan'], errors='coerce')
+            df['Fim Plan'] = pd.to_datetime(df['Fim Plan'], errors='coerce')
+            df['Fim Real'] = pd.to_datetime(df['Fim Real'], errors='coerce')
+            df['Fim(REPRO)'] = pd.to_datetime(df['Fim(REPRO)'], errors='coerce')
+
+            for col in df.columns:
+                if df[col].dtype == "object":
+                    df[col].fillna('', inplace=True)  # Substitui valores nulos por string vazia em colunas de texto
+                elif pd.api.types.is_numeric_dtype(df[col]):
+                    df[col].fillna(0, inplace=True)  # Substitui valores nulos por 0 em colunas numéricas
+                elif pd.api.types.is_datetime64_any_dtype(df[col]):
+                    df[col].fillna(pd.NaT, inplace=True)
+
             # Exibir a tabela se houver registros atrasados
             if not ultimos_5_atrasados.empty:
                 st.dataframe(ultimos_5_atrasados)
@@ -699,6 +733,7 @@ with tab3:
             # Calcular a última e a próxima semana
             hoje = datetime.now()
             ultima_semana = hoje.isocalendar()[1] - 1  # Última semana do ano
+            semana_atual = hoje.isocalendar()[1] 
             proxima_semana = hoje.isocalendar()[1] + 1  # Próxima semana do ano
             
             # Filtrando apenas os dados da última semana passada
@@ -706,110 +741,153 @@ with tab3:
 
             # Exibe a tabela da última semana
             st.markdown("<style>th {color: red;}</style>", unsafe_allow_html=True)
-            st.subheader("Tabela da Última Semana Passada")
+            st.subheader("Atividades planejadas da semana passada")
             st.dataframe(df_ultima_semana)
+
+            df_semana_atual = df[df['Semana do Ano'] == semana_atual]
+
+            # Exibe a tabela da semana atual
+            st.subheader("Atividades planejadas da semana atual")
+            st.dataframe(df_semana_atual)
 
             # Filtrando apenas os dados da próxima semana
             df_proxima_semana = df[df['Semana do Ano'] == proxima_semana]
 
             # Exibe a tabela da próxima semana
-            st.subheader("Tabela da Próxima Semana")
+            st.subheader("Atividades planejadas da semana seguinte")
             st.dataframe(df_proxima_semana)
 
-            # Função para exibir as porcentagens de atividades e de impacto em cartões aprimorados
-            def exibir_resumo_atividades(df):
-                total_atividades = df.shape[0]
-                
-                # Calcula o total de atividades concluídas
-                atividades_concluidas = df[df['Status'] == 'Concluída'].shape[0]
-                
-                # Verifica se não há atividades concluídas
-                if total_atividades == 0:
-                    porcentagem_planejada = 0.0
-                    porcentagem_concluida = 0.0
-                elif atividades_concluidas == 0:
-                    porcentagem_planejada = 100.0  # Se nenhuma atividade for concluída, 100% planejadas
-                    porcentagem_concluida = 0.0
-                else:
-                    # Se houver atividades concluídas, calcula as porcentagens
-                    porcentagem_planejada = 100.0  # Mantém 100% planejada
-                    porcentagem_concluida = (atividades_concluidas / total_atividades * 100)
+        # Função para exibir as porcentagens de atividades e de impacto em cartões aprimorados
+        def exibir_resumo_atividades(df):
+            total_atividades = df.shape[0]
+            
+            # Calcula o total de atividades concluídas e atrasadas
+            atividades_concluídas = df[df['Status'] == 'Concluída'].shape[0]
+            atividades_atrasadas = df[df['Status'] == 'Atrasada'].shape[0]
+            
+            # Verifica se não há atividades
+            if total_atividades == 0:
+                porcentagem_planejada = 0.0
+                porcentagem_concluida = 0.0
+                porcentagem_atrasada = 0.0
+            else:
+                porcentagem_planejada = 100.0
+                porcentagem_concluida = (atividades_concluídas / total_atividades) * 100
+                porcentagem_atrasada = (atividades_atrasadas / total_atividades) * 100
 
-                # Cálculo de atividades com e sem impacto
-                atividades_com_impacto = df[df['Impacto'].notna() & (df['Impacto'] != '')].shape[0]
-                atividades_sem_impacto = total_atividades - atividades_com_impacto
+            # Cálculo de atividades com e sem impacto
+            atividades_com_impacto = df[df['Impacto'].notna() & (df['Impacto'] != '')].shape[0]
+            atividades_sem_impacto = total_atividades - atividades_com_impacto
 
-                if total_atividades > 0:
-                    porcentagem_impacto = (atividades_com_impacto / total_atividades * 100)
-                    porcentagem_sem_impacto = (atividades_sem_impacto / total_atividades * 100)
-                else:
-                    porcentagem_impacto = porcentagem_sem_impacto = 0.0
+            if total_atividades > 0:
+                porcentagem_impacto = (atividades_com_impacto / total_atividades) * 100
+                porcentagem_sem_impacto = (atividades_sem_impacto / total_atividades) * 100
+            else:
+                porcentagem_impacto = porcentagem_sem_impacto = 0.0
 
-                # Criando os cartões com st.columns() para distribuir o layout com cores
-                col1, col2, col3 = st.columns(3)
+            # Layout aprimorado dos cartões
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])  # Definindo a proporção das colunas
 
-                # Cartão para atividades planejadas (com cor)
-                col1, col2, col3 = st.columns(3)
+            # CSS para estilizar os cartões com cores e tamanho maior
+            card_style = """
+                <style>
+                .card {{
+                    background-color: {bg_color};
+                    padding: 20px;
+                    margin: 10px;
+                    border-radius: 12px;
+                    text-align: center;
+                    width: 100%;
+                    min-height: 120px;
+                    box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.1);
+                }}
+                .card-title {{
+                    color: {title_color};
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin: 0;
+                }}
+                .card-value {{
+                    color: {value_color};
+                    font-size: 28px;
+                    margin: 10px 0;
+                }}
+                </style>
+            """
 
-                # Cartão para atividades planejadas (com cor)
-                with col1:
-                    st.markdown(
-                        """
-                        <div style="background-color:#E8F8F5;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
-                            <h3 style="color:#1ABC9C">Planejadas</h3>
-                            <h1 style="color:#1ABC9C">{:.0f}%</h1>
-                        </div>
-                        """.format(porcentagem_planejada), unsafe_allow_html=True
-                    )
+            # Cartões para cada coluna
+            with col1:
+                st.markdown(card_style.format(bg_color="#8E44AD", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Planejadas</p>
+                        <p class="card-value">{porcentagem_planejada:.0f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
-                # Cartão para atividades concluídas (com cor)
-                with col2:
-                    st.markdown(
-                        """
-                        <div style="background-color:#FCF3CF;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
-                            <h3 style="color:#F39C12">Concluídas</h3>
-                            <h1 style="color:#F39C12">{:.0f}%</h1>
-                        </div>
-                        """.format(porcentagem_concluida), unsafe_allow_html=True
-                    )
+            with col2:
+                st.markdown(card_style.format(bg_color="#8E44AD", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Concluídas</p>
+                        <p class="card-value">{porcentagem_concluida:.0f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
-                # Cartão para atividades com impacto (com cor)
-                with col3:
-                    st.markdown(
-                        """
-                        <div style="background-color:#FDEDEC;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
-                            <h3 style="color:#E74C3C">Com Impacto</h3>
-                            <h1 style="color:#E74C3C">{:.0f}%</h1>
-                        </div>
-                        """.format(porcentagem_impacto), unsafe_allow_html=True
-                    )
+            with col3:
+                st.markdown(card_style.format(bg_color="#E74C3C", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Atrasadas</p>
+                        <p class="card-value">{porcentagem_atrasada:.0f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
-                # Cartões para atividades sem impacto e total de atividades
-                col4, col5 = st.columns(2)
+            with col4:
+                st.markdown(card_style.format(bg_color="#F39C12", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Com Impacto</p>
+                        <p class="card-value">{porcentagem_impacto:.0f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
-                with col4:
-                    st.markdown(
-                        """
-                        <div style="background-color:#F6F6F6;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
-                            <h3 style="color:#7F8C8D">Sem Impacto</h3>
-                            <h1 style="color:#7F8C8D">{:.0f}%</h1>
-                        </div>
-                        """.format(porcentagem_sem_impacto), unsafe_allow_html=True
-                    )
+            # Cartões para atividades sem impacto e total de atividades
+            col5, col6 = st.columns([1, 1])  # Proporção das colunas para os últimos dois cartões
 
-                with col5:
-                    st.markdown(
-                        """
-                        <div style="background-color:#D5DBDB;padding:10px;border-radius:10px;text-align:center;margin-bottom:15px">
-                            <h3 style="color:#566573">Total de Atividades</h3>
-                            <h1 style="color:#566573">{}</h1>
-                        </div>
-                        """.format(total_atividades), unsafe_allow_html=True
-                    )
+            with col5:
+                st.markdown(card_style.format(bg_color="#95A5A6", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Sem Impacto</p>
+                        <p class="card-value">{porcentagem_sem_impacto:.0f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
+            with col6:
+                st.markdown(card_style.format(bg_color="#34495E", title_color="#FFFFFF", value_color="#FFFFFF"), unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="card">
+                        <p class="card-title">Total de Atividades</p>
+                        <p class="card-value">{total_atividades}</p>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
 
-            # Chamar a função para exibir os cartões estilizados
-            exibir_resumo_atividades(df)
+        # Chamar a função para exibir os cartões estilizados
+        exibir_resumo_atividades(df)
+
 
 # Função para carregar os responsáveis de um arquivo ou criar lista padrão
 def carregar_responsaveis():
