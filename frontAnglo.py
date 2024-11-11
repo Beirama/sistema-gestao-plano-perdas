@@ -27,21 +27,21 @@ def calcular_status(inicio_real, fim_real, inicio_plan, fim_plan, inicio_repro=N
         return "_"
     # Atrasada: Início planejado é menor que hoje e fim planejado está vazio
     if pd.isna(fim_plan) and inicio_plan < hoje:
-        return "Atrasada"
+        return "ATRASADA"
     # Programada: Início planejado é maior que hoje
     elif (pd.isna(fim_plan) and inicio_plan > hoje) or (not pd.isna(fim_plan) and fim_plan > hoje):
-        return "Programada" 
+        return "PROGRAMADA" 
     # Concluída: Fim real não está vazio
     elif not pd.isna(fim_real):
-        return "Concluída"
+        return "CONCLUÍDA"
     # Em andamento: Fim real não está vazio e início real é menor que hoje
     elif not pd.isna(fim_real) and inicio_real <= hoje:
-        return "Em andamento"
+        return "EM ANDAMENTO"
     # Atrasada: Se o início real estiver vazio e a data final planejada estiver no passado
     elif pd.isna(fim_real) and fim_plan < hoje:
-        return "Atrasada"
+        return "ATRASADA"
     # Em andamento: Qualquer outro caso
-    return "Em andamento"
+    return "EM ANDAMENTO"
 
 
 # Função para garantir que uma coluna é do tipo datetime
@@ -280,7 +280,7 @@ with tab2:
         pd.to_datetime(row['Inicio Plan']) if pd.notna(row['Inicio Plan']) else pd.NaT,
         pd.to_datetime(row['Fim Plan']) if pd.notna(row['Fim Plan']) else pd.NaT
         ), axis=1)
-
+        
         df['Status'] = df.apply(lambda row: calcular_status(
             row['Inicio Real'], 
             row['Fim Real'], 
@@ -562,6 +562,13 @@ with tab3:
                 max(progresso_reprogramado) if progresso_reprogramado else 0
             )
 
+            # Verificando se há valores em progresso_planejado, progresso_real e progresso_reprogramado
+            y_max = max(
+                max(progresso_planejado) if progresso_planejado else 0,
+                max(progresso_real) if progresso_real else 0,
+                max(progresso_reprogramado) if progresso_reprogramado else 0
+            )
+
             hoje = pd.Timestamp(datetime.now().date())
 
             # Calcular o progresso até hoje
@@ -575,7 +582,7 @@ with tab3:
             fig_s.add_trace(go.Scatter(
                 x=[hoje], 
                 y=[progresso_hoje[0]],  # Para o status "Planejado"
-                mode='lines+markers', 
+                mode='lines', 
                 name='Hoje',
                 line=dict(color='blue', dash='dash'), 
                 marker=dict(symbol='circle', size=6)  # Escolha uma cor para destacar
@@ -672,10 +679,10 @@ with tab3:
 
             # Dicionário de cores padrão para os status
             cores_status = {
-                'Concluída': '#8E44AD',  # Azul
-                'Atrasada': '#E74C3C',   # Vermelho
-                'Em andamento': '#F39C12', # Laranja
-                'Programada': '#ED6B3C'   # Verde
+                'CONCLUÍDA': '#8E44AD',  # Azul
+                'ATRASADA': '#E74C3C',   # Vermelho
+                'EM ANDAMENTO': '#F39C12', # Laranja
+                'PROGRAMADA': '#ED6B3C'   # Verde
             }
 
             # Criando o gráfico de pizza
